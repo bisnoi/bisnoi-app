@@ -1,0 +1,257 @@
+"""
+PayU India hosted-checkout integration for Bisnoi.
+
+Flow (web):
+1. Customer places an order (payment_method="payu", payment_status="pending").
+2. Frontend calls POST /api/payu/initiate {order_id} -> we generate a unique txnid,
+   compute the SHA-512 request hash server-side, store a payment record, and return
+   {action, fields} for the browser to auto-submit to PayU's hosted page.
+3. PayU hosted checkout handles UPI (PhonePe/GPay/Paytm intent on mobile) / cards / wallets.
+4. PayU POSTs back to surl (success) or furl (failure). We verify the reverse hash,
+   update the order's payment_status, and 303-redirect the browser to /order/{order_id}.
+
+Security: the salt NEVER leaves the server. Every callback is verified via the reverse
+hash before the order is marked paid. Updates are idempotent per txnid.
+"""
+import os
+import re
+import uuid
+import hashlib
+import logging
+from datetime import datetime, timezone
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
+
+log = logging.getLogger("payu")
+
+PAYU_ENV = os.environ.get("PAYU_ENV", "production").lower()
+PAYU_KEY = os.environ.get("PAYU_KEY", "")
+PAYU_SALT = os.environ.get("PAYU_SALT", "")
+APP_PUBLIC_URL = (os.environ.get("APP_PUBLIC_URL", "") or "").rstrip("/")
+
+_IS_TEST = PAYU_ENV in ("test", "sandbox", "uat")
+PAYU_PAYMENT_URL = "https://test.payu.in/_payment" if _IS_TEST else "https://secure.payu.in/_payment"
+PAYU_VERIFY_URL = (
+    "https://test.payu.in/merchant/postservice?form=2"
+    if _IS_TEST
+    else "https://info.payu.in/merchant/postservice?form=2"
+)
+
+
+def _sha512(s: str) -> str:
+    return hashlib.sha512(s.encode("utf-8")).hexdigest()
+
+
+def request_hash(key, txnid, amount, productinfo, firstname, email,
+                 udf1="", udf2="", udf3="", udf4="", udf5="", salt="") -> str:
+    """key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5||||||SALT
+    (udf6..udf10 are 5 empty fields => six pipes between udf5 and SALT)."""
+    seq = [key, txnid, amount, productinfo, firstname, email,
+           udf1, udf2, udf3, udf4, udf5,
+           "", "", "", "", "",
+           salt]
+    return _sha512("|".join(seq))
+
+
+def response_hash(data: dict, salt: str) -> str:
+    """Reverse hash PayU sends back:
+    [additionalCharges|]SALT|status|udf10..udf6|udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key
+    """
+    seq = [
+        salt,
+        data.get("status", ""),
+        "", "", "", "", "",  # udf10..udf6
+        data.get("udf5", ""),
+        data.get("udf4", ""),
+        data.get("udf3", ""),
+        data.get("udf2", ""),
+        data.get("udf1", ""),
+        data.get("email", ""),
+        data.get("firstname", ""),
+        data.get("productinfo", ""),
+        data.get("amount", ""),
+        data.get("txnid", ""),
+        data.get("key", ""),
+    ]
+    if data.get("additionalCharges"):
+        seq = [data["additionalCharges"]] + seq
+    return _sha512("|".join(seq))
+
+
+def _clean(s: str, fallback: str = "Customer") -> str:
+    """PayU rejects many special chars in firstname/productinfo. Keep it simple/safe."""
+    s = re.sub(r"[^A-Za-z0-9 ]+", "", (s or "")).strip()
+    return s[:60] or fallback
+
+
+def _email_for(user: dict) -> str:
+    em = (user or {}).get("email")
+    if em and "@" in em:
+        return em
+    phone = re.sub(r"\D", "", (user or {}).get("phone", "") or "") or "00000"
+    return f"{phone}@bisnoi.app"
+
+
+def _phone_for(user: dict) -> str:
+    p = re.sub(r"\D", "", (user or {}).get("phone", "") or "")
+    return p[-10:] if len(p) >= 10 else (p or "9999999999")
+
+
+class InitiateBody(BaseModel):
+    order_id: str
+
+
+def make_payu_router(db, get_current_user, require_role):
+    router = APIRouter()
+
+    def _configured() -> bool:
+        return bool(PAYU_KEY and PAYU_SALT)
+
+    def _build_fields(order: dict, user: dict) -> dict:
+        txnid = f"BIS{uuid.uuid4().hex[:20]}"
+        amount = f"{float(order.get('total', 0)):.2f}"
+        productinfo = _clean(f"Bisnoi order {order.get('restaurant_name', '')}", "Bisnoi Order")
+        firstname = _clean(user.get("name") or "Customer", "Customer")
+        email = _email_for(user)
+        phone = _phone_for(user)
+        udf1 = order["id"]  # carry the order id through the gateway round-trip
+        h = request_hash(PAYU_KEY, txnid, amount, productinfo, firstname, email, udf1=udf1, salt=PAYU_SALT)
+        fields = {
+            "key": PAYU_KEY,
+            "txnid": txnid,
+            "amount": amount,
+            "productinfo": productinfo,
+            "firstname": firstname,
+            "email": email,
+            "phone": phone,
+            "surl": f"{APP_PUBLIC_URL}/api/payu/success",
+            "furl": f"{APP_PUBLIC_URL}/api/payu/failure",
+            "hash": h,
+            "udf1": udf1,
+            "service_provider": "payu_paisa",
+            # Surface UPI (PhonePe/GPay/Paytm intent) as the primary method on the hosted page.
+            "enforce_paymethod": "upi",
+        }
+        return txnid, fields
+
+    @router.post("/payu/initiate")
+    async def payu_initiate(body: InitiateBody, user: dict = Depends(require_role("customer"))):
+        if not _configured():
+            raise HTTPException(500, "PayU is not configured on the server")
+        order = await db.orders.find_one({"id": body.order_id}, {"_id": 0})
+        if not order:
+            raise HTTPException(404, "Order not found")
+        if order.get("customer_id") != user["id"]:
+            raise HTTPException(403, "Not your order")
+        if float(order.get("total", 0)) <= 0:
+            raise HTTPException(400, "Invalid order amount")
+
+        txnid, fields = _build_fields(order, user)
+        await db.payments.insert_one({
+            "txnid": txnid,
+            "order_id": order["id"],
+            "customer_id": user["id"],
+            "amount": fields["amount"],
+            "status": "PENDING",
+            "gateway": "payu",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        await db.orders.update_one({"id": order["id"]}, {"$set": {"payment_txnid": txnid, "payment_status": "pending"}})
+        return {"action": PAYU_PAYMENT_URL, "fields": fields}
+
+    async def _verify_payment_api(txnid: str) -> dict:
+        """Optional server-to-server verification (best-effort, non-fatal)."""
+        try:
+            payload = {
+                "key": PAYU_KEY,
+                "command": "verify_payment",
+                "var1": txnid,
+                "hash": _sha512(f"{PAYU_KEY}|verify_payment|{txnid}|{PAYU_SALT}"),
+            }
+            async with httpx.AsyncClient(timeout=15) as cx:
+                r = await cx.post(PAYU_VERIFY_URL, data=payload)
+                return r.json()
+        except Exception as e:  # noqa: BLE001
+            return {"error": str(e)}
+
+    async def _handle_callback(request: Request, expected: str) -> RedirectResponse:
+        form = await request.form()
+        data = {k: str(v) for k, v in form.items()}
+        txnid = data.get("txnid", "")
+        order_id = data.get("udf1") or ""
+        status_raw = (data.get("status") or expected).lower()
+
+        # Resolve order_id from our payment record if udf1 missing.
+        pay = await db.payments.find_one({"txnid": txnid}, {"_id": 0}) if txnid else None
+        if not order_id and pay:
+            order_id = pay.get("order_id", "")
+
+        recv = (data.get("hash") or "").lower()
+        calc = response_hash(data, PAYU_SALT).lower()
+        hash_ok = bool(recv) and recv == calc
+
+        final_status = "paid" if (status_raw == "success" and hash_ok) else ("failed" if status_raw != "success" else "failed")
+        # If hash failed, never mark paid.
+        if not hash_ok:
+            final_status = "failed"
+
+        # Best-effort secondary verification (does not block redirect).
+        verify = await _verify_payment_api(txnid) if txnid else {}
+
+        if pay and pay.get("status") in ("SUCCESS", "FAILURE"):
+            # Idempotent: already processed.
+            pass
+        else:
+            await db.payments.update_one(
+                {"txnid": txnid},
+                {"$set": {
+                    "status": "SUCCESS" if final_status == "paid" else "FAILURE",
+                    "hash_verified": hash_ok,
+                    "payu_status": status_raw,
+                    "mihpayid": data.get("mihpayid"),
+                    "mode": data.get("mode"),
+                    "bank_ref_num": data.get("bank_ref_num"),
+                    "callback": data,
+                    "verify_response": verify,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }},
+                upsert=True,
+            )
+            if order_id:
+                await db.orders.update_one(
+                    {"id": order_id},
+                    {"$set": {"payment_status": final_status, "payment_txnid": txnid}},
+                )
+
+        log.info(f"PayU callback txnid={txnid} status={status_raw} hash_ok={hash_ok} -> order {order_id} {final_status}")
+
+        target = f"{APP_PUBLIC_URL}/order/{order_id}?payment={final_status}" if order_id else f"{APP_PUBLIC_URL}/customer/orders"
+        return RedirectResponse(url=target, status_code=303)
+
+    @router.post("/payu/success")
+    async def payu_success(request: Request):
+        return await _handle_callback(request, "success")
+
+    @router.post("/payu/failure")
+    async def payu_failure(request: Request):
+        return await _handle_callback(request, "failure")
+
+    @router.get("/payu/status/{order_id}")
+    async def payu_status(order_id: str, user: dict = Depends(get_current_user)):
+        order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+        if not order:
+            raise HTTPException(404, "Order not found")
+        pay = await db.payments.find_one({"order_id": order_id}, {"_id": 0}, sort=[("created_at", -1)])
+        return {
+            "order_id": order_id,
+            "payment_status": order.get("payment_status", "pending"),
+            "txnid": (pay or {}).get("txnid"),
+            "mihpayid": (pay or {}).get("mihpayid"),
+            "mode": (pay or {}).get("mode"),
+            "gateway_status": (pay or {}).get("payu_status"),
+        }
+
+    return router
