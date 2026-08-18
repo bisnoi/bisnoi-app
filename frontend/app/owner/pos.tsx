@@ -13,6 +13,7 @@ import { TablesView } from "@/src/components/TablesView";
 import { KitchenView } from "@/src/components/KitchenView";
 import { DineinOrdersView } from "@/src/components/DineinOrdersView";
 import { TableOrderModal } from "@/src/components/TableOrderModal";
+import { PosSalesReport } from "@/src/components/PosSalesReport";
 
 type Item = { id: string; restaurant_id: string; name: string; price: number; category?: string; category_id?: string | null; veg?: boolean; available?: boolean; is_available?: boolean };
 type Cat = { id: string; restaurant_id: string; name: string };
@@ -274,7 +275,7 @@ export default function OwnerPOS() {
             <TouchableOpacity
               key={m.k}
               testID={`pos-mode-${m.k}`}
-              onPress={() => { setMode(m.k); if (m.k === "bills") loadHistory(); else bumpReload(); }}
+              onPress={() => { setMode(m.k); if (m.k !== "bills") bumpReload(); }}
               style={[styles.modePill, mode === m.k && styles.modePillOn]}
               activeOpacity={0.85}
             >
@@ -314,55 +315,7 @@ export default function OwnerPOS() {
       ) : mode === "kitchen" ? (
         <KitchenView rid={activeRest || undefined} reloadSignal={reloadSignal} onChanged={bumpReload} />
       ) : mode === "bills" ? (
-        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
-          <View style={styles.analyticsRow}>
-            <View style={styles.analyticsCard}>
-              <Text style={styles.analyticsVal}>{analyticsTotals.count}</Text>
-              <Text style={styles.analyticsLabel}>Bills</Text>
-            </View>
-            <View style={styles.analyticsCard}>
-              <Text style={styles.analyticsVal}>{inr(analyticsTotals.sales)}</Text>
-              <Text style={styles.analyticsLabel}>Total Sales</Text>
-            </View>
-            <View style={styles.analyticsCard}>
-              <Text style={styles.analyticsVal}>{inr(analyticsTotals.avg)}</Text>
-              <Text style={styles.analyticsLabel}>Avg Bill</Text>
-            </View>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: spacing.md }} contentContainerStyle={{ gap: 8 }}>
-            <Pill label="All" active={billsFilter === "all"} onPress={() => setBillsFilter("all")} />
-            <Pill label="Today" active={billsFilter === "today"} onPress={() => setBillsFilter("today")} />
-            <Pill label="Yesterday" active={billsFilter === "yesterday"} onPress={() => setBillsFilter("yesterday")} />
-          </ScrollView>
-
-          {history.length === 0 ? (
-            <Empty icon="receipt-outline" title="No bills yet" subtitle="Generated POS bills will appear here." />
-          ) : visibleGroups.length === 0 ? (
-            <Empty icon="receipt-outline" title="No bills for this date" subtitle="Try a different filter." />
-          ) : visibleGroups.map((g) => (
-            <View key={g.key} style={{ marginBottom: spacing.lg }}>
-              <View style={styles.dayHead}>
-                <Text style={styles.dayHeadLabel}>{g.label.toUpperCase()}</Text>
-                <Text style={styles.dayHeadAmt}>{inr(g.total)}</Text>
-              </View>
-              {g.bills.map((b: any) => (
-                <TouchableOpacity key={b.id} activeOpacity={0.85} onPress={() => setReceipt(b)} testID={`pos-history-${b.id}`}>
-                  <Card style={{ marginBottom: spacing.sm }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                      <View style={styles.billIc}><Ionicons name="receipt" size={18} color={colors.primary} /></View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.billNo}>{b.bill_number}{b.table_label ? ` • ${b.table_label}` : ""}</Text>
-                        <Text style={styles.billMeta}>{b.item_count} items • {TYPE_LABEL[b.order_type] || b.order_type} • {PAY_LABEL[b.payment_method] || b.payment_method}</Text>
-                      </View>
-                      <Text style={styles.billTotal}>{inr(b.total)}</Text>
-                    </View>
-                  </Card>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ))}
-        </ScrollView>
+        <PosSalesReport />
       ) : restItems.length === 0 ? (
         <Empty icon="fast-food" title="No menu items" subtitle="Add items in the Menu tab before billing." />
       ) : (

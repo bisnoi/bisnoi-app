@@ -2670,8 +2670,6 @@ async def owner_create_pos(body: PosOrderCreate, user: dict = Depends(require_ro
 
 
 @api.get("/owner/sales-report")
-@api.get("/owner/pos/orders")
-@api.get("/owner/sales-report")
 async def owner_sales_report(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
@@ -2789,7 +2787,7 @@ async def owner_sales_report(
     }
     return {"rows": rows, "totals": totals, "period": {"from": from_key, "to": to_key}}
 
-
+@api.get("/owner/pos/orders")
 async def owner_list_pos(user: dict = Depends(require_role("restaurant_owner"))):
     rests = await db.restaurants.find({"owner_id": user["id"]}, {"_id": 0, "id": 1}).to_list(50)
     rids = [r["id"] for r in rests]

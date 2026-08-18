@@ -125,6 +125,10 @@ export const Api = {
   ownerSearchCustomers: (q: string) => api(`/owner/customers/search?q=${encodeURIComponent(q)}`),
   ownerCustomerHistory: (phone: string) => api(`/owner/customers/history?phone=${encodeURIComponent(phone)}`),
   ownerListPos: () => api("/owner/pos/orders"),
+  ownerSalesReport: (params: { from_date?: string; to_date?: string; payment_type?: string; order_type?: string; order_status?: string } = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v && v !== "all") as any).toString();
+    return api(`/owner/sales-report${q ? `?${q}` : ""}`);
+  },
   ownerHoldOrder: (body: any) => api("/owner/pos/hold", { method: "POST", body }),
   ownerListHeld: () => api("/owner/pos/hold"),
   ownerDeleteHeld: (id: string) => api(`/owner/pos/hold/${id}`, { method: "DELETE" }),
