@@ -1,0 +1,972 @@
+env: load .env
+env: export REACT_APP_BACKEND_URL EXPO_PUBLIC_BACKEND_URL WDS_SOCKET_PORT ENABLE_HEALTH_CHECK EXPO_USE_FAST_RESOLVER METRO_CACHE_ROOT EXPO_PUBLIC_FIREBASE_API_KEY EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN EXPO_PUBLIC_FIREBASE_PROJECT_ID EXPO_PUBLIC_FIREBASE_APP_ID EXPO_PUBLIC_FIREBASE_SENDER_ID EXPO_PUBLIC_GOOGLE_MAPS_API_KEY EXPO_TUNNEL_SUBDOMAIN EXPO_PACKAGER_HOSTNAME EXPO_PACKAGER_PROXY_URL
+
+{
+  name: [32m'Bisnoi'[39m,
+  slug: [32m'bisnoi'[39m,
+  version: [32m'1.0.0'[39m,
+  orientation: [32m'portrait'[39m,
+  icon: [32m'./assets/images/icon.png'[39m,
+  scheme: [32m'bisnoi'[39m,
+  userInterfaceStyle: [32m'automatic'[39m,
+  newArchEnabled: [33mfalse[39m,
+  plugins: [
+    [32m'expo-router'[39m,
+    [
+      [32m'expo-splash-screen'[39m,
+      {
+        image: [32m'./assets/images/splash-icon.png'[39m,
+        imageWidth: [33m200[39m,
+        resizeMode: [32m'contain'[39m,
+        backgroundColor: [32m'#287939'[39m
+      }
+    ],
+    [
+      [32m'expo-image-picker'[39m,
+      {
+        photosPermission: [32m'Bisnoi needs photo access so you can upload menu images, restaurant photos and documents.'[39m,
+        cameraPermission: [32m'Bisnoi needs camera access so you can capture menu photos and documents.'[39m
+      }
+    ],
+    [32m'expo-secure-store'[39m,
+    [32m'expo-font'[39m,
+    [32m'expo-notifications'[39m
+  ],
+  owner: [32m'bisnoi'[39m,
+  description: [90mundefined[39m,
+  sdkVersion: [32m'54.0.0'[39m,
+  platforms: [
+    [32m'ios'[39m,
+    [32m'android'[39m,
+    [32m'web'[39m
+  ],
+  ios: {
+    supportsTablet: [33mtrue[39m,
+    bundleIdentifier: [32m'com.bisnoi.app'[39m,
+    buildNumber: [32m'1'[39m,
+    infoPlist: {
+      CFBundleDevelopmentRegion: [32m'$(DEVELOPMENT_LANGUAGE)'[39m,
+      CFBundleExecutable: [32m'$(EXECUTABLE_NAME)'[39m,
+      CFBundleIdentifier: [32m'$(PRODUCT_BUNDLE_IDENTIFIER)'[39m,
+      CFBundleName: [32m'$(PRODUCT_NAME)'[39m,
+      CFBundlePackageType: [32m'$(PRODUCT_BUNDLE_PACKAGE_TYPE)'[39m,
+      CFBundleInfoDictionaryVersion: [32m'6.0'[39m,
+      CFBundleSignature: [32m'????'[39m,
+      LSMinimumSystemVersion: [32m'12.0'[39m,
+      LSRequiresIPhoneOS: [33mtrue[39m,
+      UILaunchStoryboardName: [32m'SplashScreen'[39m,
+      UIRequiredDeviceCapabilities: [
+        [32m'armv7'[39m
+      ],
+      UIViewControllerBasedStatusBarAppearance: [33mfalse[39m,
+      UIStatusBarStyle: [32m'UIStatusBarStyleDefault'[39m,
+      CADisableMinimumFrameDurationOnPhone: [33mtrue[39m,
+      NSPhotoLibraryUsageDescription: [32m'Bisnoi needs photo access so you can upload menu images, restaurant photos and documents.'[39m,
+      NSCameraUsageDescription: [32m'Bisnoi needs camera access so you can capture menu photos and documents.'[39m,
+      NSLocationWhenInUseUsageDescription: [32m'Bisnoi uses your location to show nearby restaurants and enable live order tracking.'[39m,
+      ITSAppUsesNonExemptEncryption: [33mfalse[39m,
+      LSApplicationQueriesSchemes: [
+        [32m'bhim'[39m,
+        [32m'com.phonepe.app'[39m,
+        [32m'credpay'[39m,
+        [32m'net.one97.paytm'[39m,
+        [32m'paytm'[39m,
+        [32m'paytmmp'[39m,
+        [32m'phonepe'[39m,
+        [32m'tez'[39m,
+        [32m'upi'[39m
+      ],
+      RCTNewArchEnabled: [33mfalse[39m,
+      CFBundleShortVersionString: [32m'1.0.0'[39m,
+      CFBundleVersion: [32m'1'[39m,
+      CFBundleURLTypes: [
+        {
+          CFBundleURLSchemes: [
+            [32m'bisnoi'[39m,
+            [32m'com.bisnoi.app'[39m
+          ]
+        }
+      ],
+      [32m'UISupportedInterfaceOrientations~ipad'[39m: [
+        [32m'UIInterfaceOrientationPortrait'[39m,
+        [32m'UIInterfaceOrientationPortraitUpsideDown'[39m,
+        [32m'UIInterfaceOrientationLandscapeLeft'[39m,
+        [32m'UIInterfaceOrientationLandscapeRight'[39m
+      ],
+      UIRequiresFullScreen: [33mfalse[39m,
+      UISupportedInterfaceOrientations: [
+        [32m'UIInterfaceOrientationPortrait'[39m,
+        [32m'UIInterfaceOrientationPortraitUpsideDown'[39m
+      ],
+      CFBundleDisplayName: [32m'Bisnoi'[39m,
+      NSLocationAlwaysAndWhenInUseUsageDescription: [32m'Allow $(PRODUCT_NAME) to access your location'[39m,
+      NSLocationAlwaysUsageDescription: [32m'Allow $(PRODUCT_NAME) to access your location'[39m,
+      UIUserInterfaceStyle: [32m'Automatic'[39m,
+      NSFaceIDUsageDescription: [32m'Allow $(PRODUCT_NAME) to access your Face ID biometric data.'[39m,
+      NSMicrophoneUsageDescription: [32m'Allow $(PRODUCT_NAME) to access your microphone'[39m,
+      NSUserActivityTypes: [
+        [32m'$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route'[39m
+      ],
+      NSAppTransportSecurity: {
+        NSAllowsArbitraryLoads: [33mtrue[39m,
+        NSExceptionDomains: {
+          localhost: {
+            NSExceptionAllowsInsecureHTTPLoads: [33mtrue[39m
+          }
+        }
+      }
+    },
+    entitlements: {
+      [32m'aps-environment'[39m: [32m'development'[39m
+    }
+  },
+  android: {
+    package: [32m'com.bisnoi.app'[39m,
+    googleServicesFile: [32m'./google-services.json'[39m,
+    versionCode: [33m1[39m,
+    edgeToEdgeEnabled: [33mtrue[39m,
+    permissions: [
+      [32m'android.permission.INTERNET'[39m,
+      [32m'android.permission.CAMERA'[39m,
+      [32m'android.permission.ACCESS_FINE_LOCATION'[39m,
+      [32m'android.permission.ACCESS_COARSE_LOCATION'[39m,
+      [32m'android.permission.VIBRATE'[39m,
+      [32m'android.permission.RECORD_AUDIO'[39m,
+      [32m'android.permission.READ_EXTERNAL_STORAGE'[39m,
+      [32m'android.permission.WRITE_EXTERNAL_STORAGE'[39m
+    ],
+    adaptiveIcon: {
+      foregroundImage: [32m'./assets/images/adaptive-icon.png'[39m,
+      backgroundColor: [32m'#287939'[39m
+    }
+  },
+  web: {
+    bundler: [32m'metro'[39m,
+    output: [32m'single'[39m,
+    favicon: [32m'./assets/images/favicon.png'[39m
+  },
+  experiments: {
+    typedRoutes: [33mtrue[39m
+  },
+  extra: {
+    router: {},
+    eas: {
+      projectId: [32m'22ef227c-7ce2-4aa5-88eb-e3bd8196bbe6'[39m
+    }
+  },
+  _internal: {
+    isDebug: [33mfalse[39m,
+    projectRoot: [32m'/home/admin_bisnoi/bisnoi_app/frontend'[39m,
+    staticConfigPath: [32m'/home/admin_bisnoi/bisnoi_app/frontend/app.json'[39m,
+    packageJsonPath: [32m'/home/admin_bisnoi/bisnoi_app/frontend/package.json'[39m,
+    autolinkedModules: [
+      [32m'expo'[39m,
+      [32m'expo-application'[39m,
+      [32m'expo-asset'[39m,
+      [32m'expo-blur'[39m,
+      [32m'expo-constants'[39m,
+      [32m'expo-device'[39m,
+      [32m'expo-file-system'[39m,
+      [32m'expo-font'[39m,
+      [32m'expo-haptics'[39m,
+      [32m'expo-image'[39m,
+      [32m'expo-image-loader'[39m,
+      [32m'expo-image-picker'[39m,
+      [32m'expo-keep-awake'[39m,
+      [32m'expo-linear-gradient'[39m,
+      [32m'expo-linking'[39m,
+      [32m'expo-location'[39m,
+      [32m'expo-modules-core'[39m,
+      [32m'expo-notifications'[39m,
+      [32m'expo-router'[39m,
+      [32m'expo-secure-store'[39m,
+      [32m'expo-splash-screen'[39m,
+      [32m'expo-symbols'[39m,
+      [32m'expo-system-ui'[39m,
+      [32m'expo-web-browser'[39m
+    ],
+    dynamicConfigPath: {},
+    pluginHistory: {
+      [32m'expo-splash-screen'[39m: {
+        name: [32m'expo-splash-screen'[39m,
+        version: [32m'31.0.13'[39m
+      },
+      [32m'expo-image-picker'[39m: {
+        name: [32m'expo-image-picker'[39m,
+        version: [32m'17.0.11'[39m
+      },
+      [32m'expo-secure-store'[39m: {
+        name: [32m'expo-secure-store'[39m,
+        version: [32m'15.0.8'[39m
+      },
+      [32m'expo-font'[39m: {
+        name: [32m'expo-font'[39m,
+        version: [32m'14.0.12'[39m
+      },
+      [32m'expo-notifications'[39m: {
+        name: [32m'expo-notifications'[39m,
+        version: [32m'0.32.17'[39m
+      },
+      [32m'react-native-maps'[39m: {
+        name: [32m'react-native-maps'[39m,
+        version: [32m'UNVERSIONED'[39m
+      },
+      [32m'expo-ads-admob'[39m: {
+        name: [32m'expo-ads-admob'[39m,
+        version: [32m'UNVERSIONED'[39m
+      },
+      [32m'expo-apple-authentication'[39m: {
+        name: [32m'expo-apple-authentication'[39m,
+        version: [32m'UNVERSIONED'[39m
+      },
+      [32m'expo-contacts'[39m: {
+        name: [32m'expo-contacts'[39m,
+        version: [32m'UNVERSIONED'[39m
+      },
+      [32m'expo-updates'[39m: {
+        name: [32m'expo-updates'[39m,
+        version: [32m'UNVERSIONED'[39m
+      },
+      [32m'expo-document-picker'[39m: {
+        name: [32m'expo-document-picker'[39m,
+        version: [32m'UNVERSIONED'[39m
+      },
+      [32m'expo-system-ui'[39m: {
+        name: [32m'expo-system-ui'[39m,
+        version: [32m'6.0.9'[39m
+      },
+      [32m'expo-navigation-bar'[39m: {
+        name: [32m'expo-navigation-bar'[39m,
+        version: [32m'UNVERSIONED'[39m
+      },
+      [32m'expo-file-system'[39m: {
+        name: [32m'expo-file-system'[39m,
+        version: [32m'19.0.23'[39m
+      },
+      [32m'expo-location'[39m: {
+        name: [32m'expo-location'[39m,
+        version: [32m'19.0.8'[39m
+      }
+    },
+    modResults: {
+      ios: {
+        infoPlist: {
+          CFBundleDevelopmentRegion: [32m'$(DEVELOPMENT_LANGUAGE)'[39m,
+          CFBundleExecutable: [32m'$(EXECUTABLE_NAME)'[39m,
+          CFBundleIdentifier: [32m'$(PRODUCT_BUNDLE_IDENTIFIER)'[39m,
+          CFBundleName: [32m'$(PRODUCT_NAME)'[39m,
+          CFBundlePackageType: [32m'$(PRODUCT_BUNDLE_PACKAGE_TYPE)'[39m,
+          CFBundleInfoDictionaryVersion: [32m'6.0'[39m,
+          CFBundleSignature: [32m'????'[39m,
+          LSMinimumSystemVersion: [32m'12.0'[39m,
+          LSRequiresIPhoneOS: [33mtrue[39m,
+          UILaunchStoryboardName: [32m'SplashScreen'[39m,
+          UIRequiredDeviceCapabilities: [
+            [32m'armv7'[39m
+          ],
+          UIViewControllerBasedStatusBarAppearance: [33mfalse[39m,
+          UIStatusBarStyle: [32m'UIStatusBarStyleDefault'[39m,
+          CADisableMinimumFrameDurationOnPhone: [33mtrue[39m,
+          NSPhotoLibraryUsageDescription: [32m'Bisnoi needs photo access so you can upload menu images, restaurant photos and documents.'[39m,
+          NSCameraUsageDescription: [32m'Bisnoi needs camera access so you can capture menu photos and documents.'[39m,
+          NSLocationWhenInUseUsageDescription: [32m'Bisnoi uses your location to show nearby restaurants and enable live order tracking.'[39m,
+          ITSAppUsesNonExemptEncryption: [33mfalse[39m,
+          LSApplicationQueriesSchemes: [
+            [32m'bhim'[39m,
+            [32m'com.phonepe.app'[39m,
+            [32m'credpay'[39m,
+            [32m'net.one97.paytm'[39m,
+            [32m'paytm'[39m,
+            [32m'paytmmp'[39m,
+            [32m'phonepe'[39m,
+            [32m'tez'[39m,
+            [32m'upi'[39m
+          ],
+          RCTNewArchEnabled: [33mfalse[39m,
+          CFBundleShortVersionString: [32m'1.0.0'[39m,
+          CFBundleVersion: [32m'1'[39m,
+          CFBundleURLTypes: [
+            {
+              CFBundleURLSchemes: [
+                [32m'bisnoi'[39m,
+                [32m'com.bisnoi.app'[39m
+              ]
+            }
+          ],
+          [32m'UISupportedInterfaceOrientations~ipad'[39m: [
+            [32m'UIInterfaceOrientationPortrait'[39m,
+            [32m'UIInterfaceOrientationPortraitUpsideDown'[39m,
+            [32m'UIInterfaceOrientationLandscapeLeft'[39m,
+            [32m'UIInterfaceOrientationLandscapeRight'[39m
+          ],
+          UIRequiresFullScreen: [33mfalse[39m,
+          UISupportedInterfaceOrientations: [
+            [32m'UIInterfaceOrientationPortrait'[39m,
+            [32m'UIInterfaceOrientationPortraitUpsideDown'[39m
+          ],
+          CFBundleDisplayName: [32m'Bisnoi'[39m,
+          NSLocationAlwaysAndWhenInUseUsageDescription: [32m'Allow $(PRODUCT_NAME) to access your location'[39m,
+          NSLocationAlwaysUsageDescription: [32m'Allow $(PRODUCT_NAME) to access your location'[39m,
+          UIUserInterfaceStyle: [32m'Automatic'[39m,
+          NSFaceIDUsageDescription: [32m'Allow $(PRODUCT_NAME) to access your Face ID biometric data.'[39m,
+          NSMicrophoneUsageDescription: [32m'Allow $(PRODUCT_NAME) to access your microphone'[39m,
+          NSUserActivityTypes: [
+            [32m'$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route'[39m
+          ],
+          NSAppTransportSecurity: {
+            NSAllowsArbitraryLoads: [33mtrue[39m,
+            NSExceptionDomains: {
+              localhost: {
+                NSExceptionAllowsInsecureHTTPLoads: [33mtrue[39m
+              }
+            }
+          }
+        },
+        splashScreenStoryboard: {
+          document: {
+            [32m'$'[39m: {
+              type: [32m'com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB'[39m,
+              version: [32m'3.0'[39m,
+              toolsVersion: [32m'32700.99.1234'[39m,
+              targetRuntime: [32m'iOS.CocoaTouch'[39m,
+              propertyAccessControl: [32m'none'[39m,
+              useAutolayout: [32m'YES'[39m,
+              launchScreen: [32m'YES'[39m,
+              useTraitCollections: [32m'YES'[39m,
+              useSafeAreas: [32m'YES'[39m,
+              colorMatched: [32m'YES'[39m,
+              initialViewController: [32m'EXPO-VIEWCONTROLLER-1'[39m
+            },
+            device: [
+              {
+                [32m'$'[39m: {
+                  id: [32m'retina6_12'[39m,
+                  orientation: [32m'portrait'[39m,
+                  appearance: [32m'light'[39m
+                }
+              }
+            ],
+            dependencies: [
+              {
+                deployment: [
+                  {
+                    [32m'$'[39m: {
+                      identifier: [32m'iOS'[39m
+                    }
+                  }
+                ],
+                plugIn: [
+                  {
+                    [32m'$'[39m: {
+                      identifier: [32m'com.apple.InterfaceBuilder.IBCocoaTouchPlugin'[39m,
+                      version: [32m'22685'[39m
+                    }
+                  }
+                ],
+                capability: [
+                  {
+                    [32m'$'[39m: {
+                      name: [32m'Safe area layout guides'[39m,
+                      minToolsVersion: [32m'9.0'[39m
+                    }
+                  },
+                  {
+                    [32m'$'[39m: {
+                      name: [32m'documents saved in the Xcode 8 format'[39m,
+                      minToolsVersion: [32m'8.0'[39m
+                    }
+                  }
+                ]
+              }
+            ],
+            scenes: [
+              {
+                scene: [
+                  {
+                    [32m'$'[39m: {
+                      sceneID: [32m'EXPO-SCENE-1'[39m
+                    },
+                    objects: [
+                      {
+                        viewController: [
+                          {
+                            [32m'$'[39m: {
+                              storyboardIdentifier: [32m'SplashScreenViewController'[39m,
+                              id: [32m'EXPO-VIEWCONTROLLER-1'[39m,
+                              sceneMemberID: [32m'viewController'[39m
+                            },
+                            view: [
+                              {
+                                [32m'$'[39m: {
+                                  key: [32m'view'[39m,
+                                  userInteractionEnabled: [32m'NO'[39m,
+                                  contentMode: [32m'scaleToFill'[39m,
+                                  insetsLayoutMarginsFromSafeArea: [32m'NO'[39m,
+                                  id: [32m'EXPO-ContainerView'[39m,
+                                  userLabel: [32m'ContainerView'[39m
+                                },
+                                rect: [
+                                  {
+                                    [32m'$'[39m: {
+                                      key: [32m'frame'[39m,
+                                      x: [32m'0.0'[39m,
+                                      y: [32m'0.0'[39m,
+                                      width: [32m'393'[39m,
+                                      height: [32m'852'[39m
+                                    }
+                                  }
+                                ],
+                                autoresizingMask: [
+                                  {
+                                    [32m'$'[39m: {
+                                      key: [32m'autoresizingMask'[39m,
+                                      flexibleMaxX: [32m'YES'[39m,
+                                      flexibleMaxY: [32m'YES'[39m
+                                    }
+                                  }
+                                ],
+                                subviews: [
+                                  {
+                                    imageView: [
+                                      {
+                                        [32m'$'[39m: {
+                                          id: [32m'EXPO-SplashScreen'[39m,
+                                          userLabel: [32m'SplashScreenLogo'[39m,
+                                          image: [32m'SplashScreenLogo'[39m,
+                                          contentMode: [32m'scaleAspectFit'[39m,
+                                          clipsSubviews: [33mtrue[39m,
+                                          userInteractionEnabled: [33mfalse[39m,
+                                          translatesAutoresizingMaskIntoConstraints: [33mfalse[39m
+                                        },
+                                        rect: [
+                                          {
+                                            [32m'$'[39m: {
+                                              key: [32m'frame'[39m,
+                                              x: [33m96.5[39m,
+                                              y: [33m326[39m,
+                                              width: [33m200[39m,
+                                              height: [33m200[39m
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ],
+                                viewLayoutGuide: [
+                                  {
+                                    [32m'$'[39m: {
+                                      key: [32m'safeArea'[39m,
+                                      id: [32m'Rmq-lb-GrQ'[39m
+                                    }
+                                  }
+                                ],
+                                constraints: [
+                                  {
+                                    constraint: [
+                                      {
+                                        [32m'$'[39m: {
+                                          firstItem: [32m'EXPO-SplashScreen'[39m,
+                                          firstAttribute: [32m'centerX'[39m,
+                                          secondItem: [32m'EXPO-ContainerView'[39m,
+                                          secondAttribute: [32m'centerX'[39m,
+                                          constant: [90mundefined[39m,
+                                          id: [32m'cad2ab56f97c5429bf29decf850647a4216861d4'[39m
+                                        }
+                                      },
+                                      {
+                                        [32m'$'[39m: {
+                                          firstItem: [32m'EXPO-SplashScreen'[39m,
+                                          firstAttribute: [32m'centerY'[39m,
+                                          secondItem: [32m'EXPO-ContainerView'[39m,
+                                          secondAttribute: [32m'centerY'[39m,
+                                          constant: [90mundefined[39m,
+                                          id: [32m'1a145271b085b6ce89b1405a310f5b1bb7656595'[39m
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ],
+                                color: [
+                                  {
+                                    [32m'$'[39m: {
+                                      key: [32m'backgroundColor'[39m,
+                                      name: [32m'SplashScreenBackground'[39m
+                                    }
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        placeholder: [
+                          {
+                            [32m'$'[39m: {
+                              placeholderIdentifier: [32m'IBFirstResponder'[39m,
+                              id: [32m'EXPO-PLACEHOLDER-1'[39m,
+                              userLabel: [32m'First Responder'[39m,
+                              sceneMemberID: [32m'firstResponder'[39m
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    point: [
+                      {
+                        [32m'$'[39m: {
+                          key: [32m'canvasLocation'[39m,
+                          x: [32m'140.625'[39m,
+                          y: [32m'129.4921875'[39m
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            resources: [
+              {
+                image: [
+                  {
+                    [32m'$'[39m: {
+                      name: [32m'SplashScreenLogo'[39m,
+                      width: [33m200[39m,
+                      height: [33m200[39m
+                    }
+                  }
+                ],
+                namedColor: [
+                  {
+                    [32m'$'[39m: {
+                      name: [32m'SplashScreenBackground'[39m
+                    },
+                    color: [
+                      {
+                        [32m'$'[39m: {
+                          alpha: [32m'1.000'[39m,
+                          blue: [32m'0.223529411764706'[39m,
+                          green: [32m'0.474509803921569'[39m,
+                          red: [32m'0.156862745098039'[39m,
+                          customColorSpace: [32m'sRGB'[39m,
+                          colorSpace: [32m'custom'[39m
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        entitlements: {
+          [32m'aps-environment'[39m: [32m'development'[39m
+        },
+        expoPlist: {
+          EXUpdatesEnabled: [33mfalse[39m,
+          EXUpdatesCheckOnLaunch: [32m'ALWAYS'[39m,
+          EXUpdatesLaunchWaitMs: [33m0[39m
+        },
+        podfileProperties: {
+          newArchEnabled: [32m'false'[39m,
+          [32m'expo.jsEngine'[39m: [32m'hermes'[39m
+        }
+      },
+      android: {
+        gradleProperties: [
+          {
+            type: [32m'comment'[39m,
+            value: [32m'Specifies whether the app is configured to use edge-to-edge via the app config or plugin\n'[39m +
+              [32m'# WARNING: This property has been deprecated and will be removed in Expo SDK 55. Use `edgeToEdgeEnabled` or `react.edgeToEdgeEnabled` to determine whether the project is using edge-to-edge.'[39m
+          },
+          {
+            type: [32m'property'[39m,
+            key: [32m'expo.edgeToEdgeEnabled'[39m,
+            value: [32m'true\n'[39m
+          },
+          {
+            type: [32m'comment'[39m,
+            value: [32m'Use this property to enable edge-to-edge display support.\n'[39m +
+              [32m'# This allows your app to draw behind system bars for an immersive UI.\n'[39m +
+              [32m'# Note: Only works with ReactActivity and should not be used with custom Activity.'[39m
+          },
+          {
+            type: [32m'property'[39m,
+            key: [32m'edgeToEdgeEnabled'[39m,
+            value: [32m'true\n'[39m
+          },
+          {
+            type: [32m'property'[39m,
+            key: [32m'newArchEnabled'[39m,
+            value: [32m'false'[39m
+          },
+          {
+            type: [32m'property'[39m,
+            key: [32m'hermesEnabled'[39m,
+            value: [32m'true'[39m
+          }
+        ],
+        colors: {
+          resources: {
+            color: [
+              {
+                [32m'$'[39m: {
+                  name: [32m'iconBackground'[39m
+                },
+                _: [32m'#287939'[39m
+              },
+              {
+                [32m'$'[39m: {
+                  name: [32m'colorPrimary'[39m
+                },
+                _: [32m'#023c69'[39m
+              },
+              {
+                [32m'$'[39m: {
+                  name: [32m'colorPrimaryDark'[39m
+                },
+                _: [32m'#287939'[39m
+              },
+              {
+                [32m'$'[39m: {
+                  name: [32m'splashscreen_background'[39m
+                },
+                _: [32m'#287939'[39m
+              }
+            ]
+          }
+        },
+        colorsNight: {
+          resources: {}
+        },
+        styles: {
+          resources: {
+            [32m'$'[39m: {
+              [32m'xmlns:tools'[39m: [32m'http://schemas.android.com/tools'[39m
+            },
+            style: [
+              {
+                [32m'$'[39m: {
+                  name: [32m'AppTheme'[39m,
+                  parent: [32m'Theme.AppCompat.Light.NoActionBar'[39m
+                },
+                item: [
+                  {
+                    [32m'$'[39m: {
+                      name: [32m'colorPrimary'[39m
+                    },
+                    _: [32m'@color/colorPrimary'[39m
+                  },
+                  {
+                    [32m'$'[39m: {
+                      name: [32m'android:statusBarColor'[39m
+                    },
+                    _: [32m'#287939'[39m
+                  }
+                ]
+              },
+              {
+                [32m'$'[39m: {
+                  name: [32m'Theme.App.SplashScreen'[39m,
+                  parent: [32m'Theme.SplashScreen'[39m
+                },
+                item: [
+                  {
+                    [32m'$'[39m: {
+                      name: [32m'windowSplashScreenBackground'[39m
+                    },
+                    _: [32m'@color/splashscreen_background'[39m
+                  },
+                  {
+                    [32m'$'[39m: {
+                      name: [32m'windowSplashScreenAnimatedIcon'[39m
+                    },
+                    _: [32m'@drawable/splashscreen_logo'[39m
+                  },
+                  {
+                    [32m'$'[39m: {
+                      name: [32m'postSplashScreenTheme'[39m
+                    },
+                    _: [32m'@style/AppTheme'[39m
+                  },
+                  {
+                    [32m'$'[39m: {
+                      name: [32m'android:windowSplashScreenBehavior'[39m
+                    },
+                    _: [32m'icon_preferred'[39m
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        strings: {
+          resources: {
+            string: [
+              {
+                [32m'$'[39m: {
+                  name: [32m'app_name'[39m
+                },
+                _: [32m'Bisnoi'[39m
+              },
+              {
+                [32m'$'[39m: {
+                  name: [32m'expo_system_ui_user_interface_style'[39m,
+                  translatable: [32m'false'[39m
+                },
+                _: [32m'automatic'[39m
+              },
+              {
+                [32m'$'[39m: {
+                  name: [32m'expo_splash_screen_resize_mode'[39m,
+                  translatable: [32m'false'[39m
+                },
+                _: [32m'contain'[39m
+              },
+              {
+                [32m'$'[39m: {
+                  name: [32m'expo_splash_screen_status_bar_translucent'[39m,
+                  translatable: [32m'false'[39m
+                },
+                _: [32m'false'[39m
+              }
+            ]
+          }
+        },
+        manifest: {
+          manifest: {
+            [32m'$'[39m: {
+              [32m'xmlns:android'[39m: [32m'http://schemas.android.com/apk/res/android'[39m,
+              package: [32m'com.bisnoi.app'[39m,
+              [32m'xmlns:tools'[39m: [32m'http://schemas.android.com/tools'[39m
+            },
+            [32m'uses-permission'[39m: [
+              {
+                [32m'$'[39m: {
+                  [32m'android:name'[39m: [32m'android.permission.INTERNET'[39m
+                }
+              },
+              {
+                [32m'$'[39m: {
+                  [32m'android:name'[39m: [32m'android.permission.SYSTEM_ALERT_WINDOW'[39m
+                }
+              },
+              {
+                [32m'$'[39m: {
+                  [32m'android:name'[39m: [32m'android.permission.VIBRATE'[39m
+                }
+              },
+              {
+                [32m'$'[39m: {
+                  [32m'android:name'[39m: [32m'android.permission.READ_EXTERNAL_STORAGE'[39m
+                }
+              },
+              {
+                [32m'$'[39m: {
+                  [32m'android:name'[39m: [32m'android.permission.WRITE_EXTERNAL_STORAGE'[39m
+                }
+              },
+              {
+                [32m'$'[39m: {
+                  [32m'android:name'[39m: [32m'android.permission.CAMERA'[39m
+                }
+              },
+              {
+                [32m'$'[39m: {
+                  [32m'android:name'[39m: [32m'android.permission.ACCESS_FINE_LOCATION'[39m
+                }
+              },
+              {
+                [32m'$'[39m: {
+                  [32m'android:name'[39m: [32m'android.permission.ACCESS_COARSE_LOCATION'[39m
+                }
+              },
+              {
+                [32m'$'[39m: {
+                  [32m'android:name'[39m: [32m'android.permission.RECORD_AUDIO'[39m
+                }
+              }
+            ],
+            queries: [
+              {
+                intent: [
+                  {
+                    action: [
+                      {
+                        [32m'$'[39m: {
+                          [32m'android:name'[39m: [32m'android.intent.action.VIEW'[39m
+                        }
+                      }
+                    ],
+                    category: [
+                      {
+                        [32m'$'[39m: {
+                          [32m'android:name'[39m: [32m'android.intent.category.BROWSABLE'[39m
+                        }
+                      }
+                    ],
+                    data: [
+                      {
+                        [32m'$'[39m: {
+                          [32m'android:scheme'[39m: [32m'https'[39m
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            application: [
+              {
+                [32m'$'[39m: {
+                  [32m'android:name'[39m: [32m'.MainApplication'[39m,
+                  [32m'android:label'[39m: [32m'@string/app_name'[39m,
+                  [32m'android:icon'[39m: [32m'@mipmap/ic_launcher'[39m,
+                  [32m'android:roundIcon'[39m: [32m'@mipmap/ic_launcher_round'[39m,
+                  [32m'android:allowBackup'[39m: [32m'true'[39m,
+                  [32m'android:theme'[39m: [32m'@style/AppTheme'[39m,
+                  [32m'android:supportsRtl'[39m: [32m'true'[39m,
+                  [32m'android:enableOnBackInvokedCallback'[39m: [32m'false'[39m,
+                  [32m'android:fullBackupContent'[39m: [32m'@xml/secure_store_backup_rules'[39m,
+                  [32m'android:dataExtractionRules'[39m: [32m'@xml/secure_store_data_extraction_rules'[39m
+                },
+                activity: [
+                  {
+                    [32m'$'[39m: {
+                      [32m'android:name'[39m: [32m'.MainActivity'[39m,
+                      [32m'android:configChanges'[39m: [32m'keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode'[39m,
+                      [32m'android:launchMode'[39m: [32m'singleTask'[39m,
+                      [32m'android:windowSoftInputMode'[39m: [32m'adjustResize'[39m,
+                      [32m'android:theme'[39m: [32m'@style/Theme.App.SplashScreen'[39m,
+                      [32m'android:exported'[39m: [32m'true'[39m,
+                      [32m'android:screenOrientation'[39m: [32m'portrait'[39m
+                    },
+                    [32m'intent-filter'[39m: [
+                      {
+                        action: [
+                          {
+                            [32m'$'[39m: {
+                              [32m'android:name'[39m: [32m'android.intent.action.MAIN'[39m
+                            }
+                          }
+                        ],
+                        category: [
+                          {
+                            [32m'$'[39m: {
+                              [32m'android:name'[39m: [32m'android.intent.category.LAUNCHER'[39m
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        action: [
+                          {
+                            [32m'$'[39m: {
+                              [32m'android:name'[39m: [32m'android.intent.action.VIEW'[39m
+                            }
+                          }
+                        ],
+                        category: [
+                          {
+                            [32m'$'[39m: {
+                              [32m'android:name'[39m: [32m'android.intent.category.DEFAULT'[39m
+                            }
+                          },
+                          {
+                            [32m'$'[39m: {
+                              [32m'android:name'[39m: [32m'android.intent.category.BROWSABLE'[39m
+                            }
+                          }
+                        ],
+                        data: [
+                          {
+                            [32m'$'[39m: {
+                              [32m'android:scheme'[39m: [32m'bisnoi'[39m
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                [32m'meta-data'[39m: [
+                  {
+                    [32m'$'[39m: {
+                      [32m'android:name'[39m: [32m'expo.modules.updates.ENABLED'[39m,
+                      [32m'android:value'[39m: [32m'false'[39m
+                    }
+                  },
+                  {
+                    [32m'$'[39m: {
+                      [32m'android:name'[39m: [32m'expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH'[39m,
+                      [32m'android:value'[39m: [32m'ALWAYS'[39m
+                    }
+                  },
+                  {
+                    [32m'$'[39m: {
+                      [32m'android:name'[39m: [32m'expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS'[39m,
+                      [32m'android:value'[39m: [32m'0'[39m
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  mods: {
+    ios: {
+      infoPlist: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      },
+      splashScreenStoryboard: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      },
+      entitlements: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      },
+      expoPlist: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      },
+      podfileProperties: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      }
+    },
+    android: {
+      colors: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      },
+      colorsNight: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      },
+      styles: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      },
+      strings: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      },
+      manifest: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      },
+      gradleProperties: [AsyncFunction: interceptingMod] {
+        isProvider: [33mtrue[39m,
+        isIntrospective: [33mtrue[39m
+      }
+    }
+  },
+  androidStatusBar: {
+    backgroundColor: [32m'#287939'[39m
+  }
+}
+

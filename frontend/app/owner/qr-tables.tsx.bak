@@ -1,0 +1,158 @@
+import React, { useCallback, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Api } from "@/src/api";
+import { colors, spacing, radius, font, shadow } from "@/src/theme";
+
+const BASE = process.env.EXPO_PUBLIC_DINEIN_BASE_URL || "https://bisnoi.com";
+
+function tableLink(rid: string, tableId: string, token: string) {
+  return `${BASE}/dinein?rid=${encodeURIComponent(rid)}&tid=${encodeURIComponent(tableId)}&t=${encodeURIComponent(token)}`;
+}
+function qrImg(data: string, size = 220) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(data)}`;
+}
+
+export default function OwnerTableQr() {
+  const router = useRouter();
+  const [rest, setRest] = useState<any>(null);
+  const [tables, setTables] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [count, setCount] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const r: any = await Api.ownerMyRestaurant();
+      setRest(r);
+      if (r?.id) {
+        const t: any = await Api.ownerTables(r.id);
+        const list = Array.isArray(t) ? t : (t?.tables || []);
+        setTables(list);
+        setCount(String(list.length || ""));
+      }
+    } catch (e: any) {
+      setMsg(e?.message || "Could not load tables");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
+
+  const applyCount = async () => {
+    const n = parseInt(count || "0", 10);
+    if (!Number.isFinite(n) || n < 0 || saving || !rest?.id) return;
+    setSaving(true); setMsg("");
+    try {
+      const t: any = await Api.ownerSetTableCount(n, rest.id);
+      const list = Array.isArray(t) ? t : (t?.tables || []);
+      setTables(list);
+      setMsg(`${list.length} table${list.length === 1 ? "" : "s"} ready. QR codes updated.`);
+    } catch (e: any) {
+      setMsg(e?.message || "Could not update tables");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openLink = (url: string) => {
+    if (Platform.OS === "web" && typeof window !== "undefined") window.open(url, "_blank");
+  };
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}><Ionicons name="arrow-back" size={22} color={colors.textPrimary} /></TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.hTitle}>Dine-in QR Codes</Text>
+          <Text style={styles.hSub}>One QR per table — print & place on each</Text>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+        ) : (
+          <>
+            <View style={styles.infoBox}>
+              <Ionicons name="information-circle" size={18} color={colors.primary} />
+              <Text style={styles.infoTxt}>
+                Print a QR for <Text style={{ fontWeight: font.black }}>each</Text> table and place it there. Guests scan their table's QR → download the Bisnoi app → land straight on the menu for that exact table → order. It lands in your Dine-in & Kitchen (KDS) instantly. Payment is collected at the counter.
+              </Text>
+            </View>
+
+            <Text style={styles.sectionLabel}>NUMBER OF TABLES</Text>
+            <Text style={styles.tblHint}>Sets how many tables — and QR codes — exist for this restaurant.</Text>
+            <View style={styles.countRow}>
+              <TextInput
+                testID="qr-table-count"
+                value={count}
+                onChangeText={(v) => setCount(v.replace(/[^0-9]/g, ""))}
+                keyboardType="numeric"
+                placeholder="e.g. 10"
+                placeholderTextColor={colors.textMuted}
+                style={styles.countInput}
+              />
+              <TouchableOpacity testID="qr-apply-count" onPress={applyCount} disabled={saving} style={[styles.applyBtn, { opacity: saving ? 0.6 : 1 }]}>
+                {saving ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.applyTxt}>Apply</Text>}
+              </TouchableOpacity>
+            </View>
+            {msg ? <Text style={styles.msg}>{msg}</Text> : null}
+
+            {/* Per-table QR list */}
+            <Text style={[styles.sectionLabel, { marginTop: spacing.xl }]}>TABLE QR CODES</Text>
+            {rest?.id && tables.length > 0 ? (
+              <View style={styles.qrGrid}>
+                {tables.map((tb: any) => {
+                  const link = tableLink(rest.id, tb.id, tb.qr_token || "");
+                  return (
+                    <View key={tb.id} style={styles.qrCard}>
+                      <Text style={styles.qrLabel}>{tb.label}</Text>
+                      <Image source={{ uri: qrImg(link, 220) }} style={styles.qrImg} resizeMode="contain" />
+                      <TouchableOpacity testID={`qr-open-print-${tb.id}`} onPress={() => openLink(qrImg(link, 800))} style={styles.qrBtn}>
+                        <Ionicons name="download-outline" size={14} color={colors.primary} />
+                        <Text style={styles.qrBtnTxt}>Open / Print</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.tblHint}>No tables yet — set a table count above to generate QR codes.</Text>
+            )}
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
+  backBtn: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceAlt },
+  hTitle: { fontSize: 18, fontWeight: font.black, color: colors.textPrimary },
+  hSub: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+
+  infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.lg },
+  infoTxt: { flex: 1, fontSize: 12, color: colors.textPrimary, lineHeight: 18 },
+
+  sectionLabel: { fontSize: 12, fontWeight: font.black, color: colors.textSecondary, letterSpacing: 0.6, marginBottom: 4, marginTop: spacing.lg },
+  tblHint: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.sm, lineHeight: 17 },
+  countRow: { flexDirection: "row", gap: 10, alignItems: "center" },
+  countInput: { flex: 1, height: 50, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, paddingHorizontal: 14, fontSize: 16, fontWeight: font.bold, color: colors.textPrimary, backgroundColor: colors.surface },
+  applyBtn: { height: 50, paddingHorizontal: 24, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  applyTxt: { color: colors.onPrimary, fontWeight: font.black, fontSize: 15 },
+  msg: { color: colors.success, fontSize: 13, fontWeight: font.semi, marginTop: spacing.sm },
+
+  qrGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  qrCard: { width: "47%", backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md, alignItems: "center", ...shadow.card },
+  qrImg: { width: 160, height: 160, backgroundColor: "#fff", borderRadius: radius.md, marginTop: 8 },
+  qrLabel: { fontSize: 14, fontWeight: font.black, color: colors.textPrimary, textAlign: "center" },
+  qrBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  qrBtnTxt: { color: colors.primary, fontWeight: font.black, fontSize: 12 },
+});

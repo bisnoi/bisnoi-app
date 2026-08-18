@@ -1,0 +1,59 @@
+              {cats.map((c) => (
+                <View key={c._id} style={styles.catCard} testID={`ai-cat-${c._id}`}>
+                  <View style={styles.catHeader}>
+                    <Ionicons name="pricetag" size={15} color={colors.primary} />
+                    <TextInput
+                      testID={`ai-cat-name-${c._id}`}
+                      value={c.name}
+                      onChangeText={(t) => updateCatName(c._id, t)}
+                      placeholder="Category name"
+                      placeholderTextColor={colors.textMuted}
+                      style={styles.catNameInput}
+                    />
+                    <TouchableOpacity testID={`ai-cat-remove-${c._id}`} onPress={() => removeCat(c._id)} hitSlop={8} style={styles.catRemove}>
+                      <Ionicons name="trash" size={16} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {c.items.map((it) => (
+                    <View key={it._id} style={styles.itemRow} testID={`ai-item-${it._id}`}>
+                      <TouchableOpacity onPress={() => updateItem(c._id, it._id, { veg: !it.veg })} hitSlop={6} testID={`ai-item-veg-${it._id}`}>
+                        <VegDot veg={it.veg} />
+                      </TouchableOpacity>
+                      <View style={{ flex: 1, gap: 6 }}>
+                        <TextInput
+                          testID={`ai-item-name-${it._id}`}
+                          value={it.name}
+                          onChangeText={(t) => updateItem(c._id, it._id, { name: t })}
+                          placeholder="Item name"
+                          placeholderTextColor={colors.textMuted}
+                          style={styles.itemName}
+                        />
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <View style={styles.priceWrap}>
+                            <Text style={styles.rupee}>₹</Text>
+                            <TextInput
+                              testID={`ai-item-price-${it._id}`}
+                              value={it.price}
+                              onChangeText={(t) => updateItem(c._id, it._id, { price: t.replace(/[^0-9]/g, "") })}
+                              keyboardType="number-pad"
+                              placeholder="0"
+                              placeholderTextColor={colors.textMuted}
+                              style={styles.priceInput}
+                            />
+                          </View>
+                          <Text style={styles.vegLabel}>{it.veg ? "Veg" : "Non-veg"}</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity testID={`ai-item-remove-${it._id}`} onPress={() => removeItem(c._id, it._id)} hitSlop={8} style={styles.itemRemove}>
+                        <Ionicons name="close" size={18} color={colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+
+                  <TouchableOpacity testID={`ai-cat-additem-${c._id}`} onPress={() => addItem(c._id)} style={styles.addItemBtn}>
+                    <Ionicons name="add" size={16} color={colors.primary} />
+                    <Text style={styles.addItemText}>Add item</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}

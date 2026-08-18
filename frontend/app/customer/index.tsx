@@ -1,0 +1,268 @@
+import React, { useEffect, useState, useCallback } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, TextInput, FlatList } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { Api } from "@/src/api";
+import { useAuth } from "@/src/auth";
+import { colors, spacing, radius, font, shadow } from "@/src/theme";
+import { Rating, Section, Pill, Empty } from "@/src/components/ui";
+import BannerCarousel, { type Banner } from "@/src/components/BannerCarousel";
+import { getLocationLabel, detectLocation } from "@/src/utils/geo";
+import { useCachedLocation } from "@/src/components/LocationPrompt";
+import { LiveOrderBar } from "@/src/components/LiveOrderBar";
+
+type Restaurant = { id: string; name: string; image: string; cuisines: string[]; rating: number; delivery_time: number; price_for_two: number; offer_text?: string; is_promoted?: boolean; address: string; open_now?: boolean };
+type Category = { name: string; image: string };
+type Ad = Banner;
+
+export default function CustomerHome() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [ads, setAds] = useState<Ad[]>([]);
+  const [activeFilter, setActiveFilter] = useState<string>("all");
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [locLabel, setLocLabel] = useState<string | null>(null);
+  const [locBusy, setLocBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const [rs, cats, adList] = await Promise.all([Api.restaurants(), Api.categories(), Api.ads().catch(() => [])]);
+      setRestaurants(rs as Restaurant[]);
+      setCategories(cats as Category[]);
+      setAds(adList as Ad[]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Populate the header location from cache (no popup). Re-runs when a fresh
+  // fix arrives, which on native is always after this screen has mounted.
+  const cachedGeo = useCachedLocation();
+  useEffect(() => {
+    getLocationLabel().then((l) => { if (l) setLocLabel(l); }).catch(() => {});
+  }, [cachedGeo?.lat, cachedGeo?.lng]);
+
+  const onTapLocation = async () => {
+    setLocBusy(true);
+    try {
+      const l = await detectLocation();
+      if (l) setLocLabel(l);
+    } finally {
+      setLocBusy(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
+
+  const filterChips = [
+    { key: "all", label: "All", icon: "flame" as const },
+    { key: "rating", label: "Rating 4.0+", icon: "star" as const },
+    { key: "fast", label: "Fast delivery", icon: "flash" as const },
+    { key: "offer", label: "Offers", icon: "pricetag" as const },
+    { key: "veg", label: "Pure Veg", icon: "leaf" as const },
+  ];
+
+  const filtered = restaurants.filter((r) => {
+    if (activeFilter === "rating") return r.rating >= 4.0;
+    if (activeFilter === "fast") return r.delivery_time <= 30;
+    if (activeFilter === "offer") return !!r.offer_text;
+    if (activeFilter === "veg") return r.cuisines.some((c) => /south indian|veg|healthy|desserts|bakery/i.test(c));
+    return true;
+  });
+
+  const promoted = restaurants.filter((r) => r.is_promoted).slice(0, 6);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <ScrollView
+        stickyHeaderIndices={[1]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            testID="header-location"
+            style={{ flex: 1 }}
+            activeOpacity={0.7}
+            onPress={onTapLocation}
+            disabled={locBusy}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Ionicons name="location" size={18} color={colors.primary} />
+              <Text style={styles.locTitle}>{locBusy ? "Detecting…" : locLabel ? "Current" : "Set location"}</Text>
+              <Ionicons name="chevron-down" size={16} color={colors.textPrimary} />
+            </View>
+            <Text style={styles.locSub} numberOfLines={1}>
+              {locBusy ? "Fetching your location…" : locLabel ? locLabel : "Tap to use current location"}
+            </Text>
+          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <TouchableOpacity onPress={() => router.push("/customer/profile")} style={styles.avatar}>
+              <Text style={{ color: colors.onPrimary, fontWeight: font.black }}>{(user?.name || "U")[0].toUpperCase()}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Search bar (sticky) */}
+        <View style={styles.searchWrap}>
+          <TouchableOpacity activeOpacity={0.85} onPress={() => router.push("/customer/search")} style={styles.searchBar}>
+            <Ionicons name="search" size={18} color={colors.textSecondary} />
+            <Text style={styles.searchPlaceholder}>Search for restaurants or dishes</Text>
+            <View style={styles.searchDivider} />
+            <Ionicons name="mic" size={18} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Hero promo banners (admin-managed: images, GIFs & videos) */}
+        {ads.length > 0 && <BannerCarousel banners={ads} />}
+
+        {/* Categories */}
+        <Section title="What's on your mind?">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 12, paddingRight: spacing.lg, alignItems: 'center' }}>
+            {categories.map((c) => (
+              <TouchableOpacity key={c.name} style={styles.cat} onPress={() => router.push({ pathname: "/customer/search", params: { q: c.name } } as any)}>
+                <Image source={{ uri: c.image }} style={styles.catImg} />
+                <Text style={styles.catLabel}>{c.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Section>
+
+        {/* Promoted */}
+        {promoted.length > 0 && (
+          <Section title="Top picks for you">
+            <FlatList
+              data={promoted}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(i) => i.id}
+              contentContainerStyle={{ gap: 12, paddingRight: spacing.lg }}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.promo} onPress={() => router.push(`/restaurant/${item.id}` as any)} activeOpacity={0.9}>
+                  <Image source={{ uri: item.image }} style={[styles.promoImg, item.open_now === false && { opacity: 0.5 }]} />
+                  {item.open_now === false && (
+                    <View style={styles.promoClosedOverlay} pointerEvents="none">
+                      <Text style={styles.closedOverlayText}>CLOSED</Text>
+                    </View>
+                  )}
+                  {item.offer_text && (
+                    <View style={styles.promoOffer}>
+                      <Text style={styles.promoOfferText}>{item.offer_text}</Text>
+                    </View>
+                  )}
+                  <View style={{ padding: 10 }}>
+                    <Text style={styles.promoName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.promoMeta} numberOfLines={1}>{item.cuisines.slice(0, 2).join(", ")}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+                      <Rating value={item.rating} />
+                      <Text style={styles.promoMeta}>• {item.delivery_time} mins</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+          </Section>
+        )}
+
+        {/* Filters */}
+        <View style={{ marginTop: spacing.xl, paddingLeft: spacing.lg }}>
+          <Text style={styles.sectionTitle}>{filtered.length} restaurants near you</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ paddingVertical: spacing.md, paddingRight: spacing.lg, alignItems: 'center' }}>
+            {filterChips.map((f) => (
+              <Pill key={f.key} label={f.label} active={activeFilter === f.key} onPress={() => setActiveFilter(f.key)} icon={f.icon} />
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Restaurant list */}
+        <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: 100 }}>
+          {loading ? (
+            <Text style={{ color: colors.textSecondary, textAlign: "center", padding: 30 }}>Loading...</Text>
+          ) : filtered.length === 0 ? (
+            <Empty icon="sad-outline" title="No restaurants" subtitle="Try a different filter" />
+          ) : (
+            filtered.map((r) => (
+              <TouchableOpacity key={r.id} style={styles.rCard} activeOpacity={0.9} onPress={() => router.push(`/restaurant/${r.id}` as any)}>
+                <Image source={{ uri: r.item_image || r.image }} style={[styles.rImg, r.open_now === false && { opacity: 0.5 }]} />
+                {r.open_now === false && (
+                  <View style={styles.closedOverlay} pointerEvents="none">
+                    <Text style={styles.closedOverlayText}>CLOSED</Text>
+                  </View>
+                )}
+                {r.offer_text && (
+                  <View style={styles.offerStrip}>
+                    <Text style={styles.offerText}>{r.offer_text}</Text>
+                  </View>
+                )}
+                <View style={{ padding: spacing.md }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <Text style={styles.rName} numberOfLines={1}>{r.name}</Text>
+                    <Rating value={r.rating} />
+                  </View>
+                  <Text style={styles.rMeta} numberOfLines={1}>{r.cuisines.join(" • ")}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Ionicons name="time" size={13} color={colors.textSecondary} />
+                      <Text style={styles.rMeta}>{r.delivery_time} mins</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Ionicons name="cash" size={13} color={colors.textSecondary} />
+                      <Text style={styles.rMeta}>₹{r.price_for_two} for two</Text>
+                    </View>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </ScrollView>
+      <LiveOrderBar bottom={78} />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  locTitle: { fontSize: 18, fontWeight: font.black, color: colors.textPrimary },
+  locSub: { fontSize: 12, color: colors.textSecondary, marginLeft: 22, marginTop: 2 },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  searchWrap: { backgroundColor: colors.background, paddingBottom: spacing.sm },
+  searchBar: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: spacing.lg, marginTop: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, ...shadow.card },
+  searchPlaceholder: { flex: 1, color: colors.textSecondary, fontSize: 14 },
+  searchDivider: { width: 1, height: 18, backgroundColor: colors.border },
+  cat: { alignItems: "center", width: 80 },
+  catImg: { width: 72, height: 72, borderRadius: 36 },
+  catLabel: { fontSize: 12, fontWeight: font.semi, color: colors.textPrimary, marginTop: 6 },
+  promo: { width: 220, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden", ...shadow.card },
+  promoImg: { width: "100%", height: 130 },
+  promoClosedOverlay: { position: "absolute", top: 0, left: 0, right: 0, height: 130, alignItems: "center", justifyContent: "center" },
+  promoOffer: { position: "absolute", left: 8, bottom: 60, backgroundColor: colors.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  promoOfferText: { color: "#fff", fontSize: 11, fontWeight: font.bold },
+  adBanner: { width: 300, height: 150, borderRadius: radius.lg, overflow: "hidden", backgroundColor: colors.surfaceAlt, ...shadow.card },
+  adBannerImg: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  adBannerOverlay: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 14, backgroundColor: "rgba(0,0,0,0.45)" },
+  adBannerTitle: { color: "#fff", fontSize: 18, fontWeight: font.black },
+  adBannerSub: { color: "#DCFCE7", fontSize: 12, fontWeight: font.med, marginTop: 2 },
+  promoName: { fontSize: 14, fontWeight: font.bold, color: colors.textPrimary },
+  promoMeta: { fontSize: 12, color: colors.textSecondary },
+  sectionTitle: { fontSize: 16, fontWeight: font.black, color: colors.textPrimary, letterSpacing: 0.3, textTransform: "uppercase" },
+  rCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden", ...shadow.card },
+  rImg: { width: "100%", height: 160 },
+  closedOverlay: { position: "absolute", top: 0, left: 0, right: 0, height: 160, alignItems: "center", justifyContent: "center" },
+  closedOverlayText: { color: "#fff", fontWeight: font.black, fontSize: 16, letterSpacing: 2, borderWidth: 2, borderColor: "#fff", paddingHorizontal: 14, paddingVertical: 5, borderRadius: radius.sm, backgroundColor: "rgba(0,0,0,0.35)" },
+  offerStrip: { position: "absolute", top: 130, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.55)", paddingVertical: 6, paddingHorizontal: spacing.md },
+  offerText: { color: "#fff", fontWeight: font.bold, fontSize: 13 },
+  rName: { fontSize: 16, fontWeight: font.bold, color: colors.textPrimary, flex: 1, marginRight: 8 },
+  rMeta: { fontSize: 12, color: colors.textSecondary },
+});

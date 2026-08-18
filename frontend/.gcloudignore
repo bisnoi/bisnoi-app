@@ -1,0 +1,37 @@
+# Files not uploaded to Cloud Build when running `gcloud run deploy --source .`
+#
+# NOTE: once this file exists gcloud stops falling back to .gitignore, so
+# everything that should stay out of the build context has to be listed here.
+# .env is deliberately NOT ignored — `expo export -p web` inlines the
+# EXPO_PUBLIC_* vars at build time and the web bundle needs them.
+
+.git
+.gcloudignore
+.gitignore
+
+# Dependencies (reinstalled inside the image from package.json + yarn.lock)
+node_modules
+/.pnp
+.pnp.js
+
+# Python backend + its virtualenvs — deployed as a separate Cloud Run service
+backend
+
+# Build output (the image runs `yarn build:web` itself)
+dist
+/build
+/coverage
+.expo
+
+# Local tooling / editor noise
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.metro-cache
+
+# Android signing material — must never land in a container image
+*.jks
+*.keystore
+upload_cert.der

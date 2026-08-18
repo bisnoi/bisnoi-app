@@ -1,0 +1,109 @@
+// Native (Android APK / iOS IPA) Razorpay checkout via react-native-razorpay.
+// This module is picked by Metro on native platforms (over razorpay.ts, which is
+// the web JS-SDK / checkout.js implementation). The native SDK shows Razorpay's
+// own bottom-sheet with installed UPI apps (PhonePe/GPay/Paytm — tap opens the
+// app directly via intent), saved/new cards, netbanking and wallets — same
+// experience as Zomato/Swiggy.
+//
+// IMPORTANT: react-native-razorpay is a NATIVE MODULE. It does NOT exist in
+// Expo Go. Doing a top-level `import RazorpayCheckout from "react-native-razorpay"`
+// therefore crashes the whole app on load in Expo Go with:
+//   "Your JavaScript code tried to access a native module that doesn't exist."
+// To keep Expo Go usable for previewing the rest of the app, we LAZY-require the
+// module inside openRazorpayCheckout only. The import happens at pay-time, not
+// at boot. In a real APK / IPA build the module is present and works normally;
+// in Expo Go the user just gets a friendly toast if they actually hit checkout.
+import { NativeModules } from "react-native";
+
+export function isWeb(): boolean {
+  return false;
+}
+
+/** True only when the react-native-razorpay native module is actually linked.
+ * The library itself looks up NativeModules.RNRazorpayCheckout (see its own
+ * RazorpayCheckout.js) — NOT NativeModules.RazorpayCheckout — so we check the
+ * same key it actually uses. */
+function razorpayLinked(): boolean {
+  try {
+    return !!NativeModules.RNRazorpayCheckout;
+  } catch {
+    return false;
+  }
+}
+
+// No script to load on native — the SDK is a compiled native module.
+export async function loadRazorpay(): Promise<boolean> {
+  return razorpayLinked();
+}
+
+export type RzpResponse = {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+};
+
+export type RzpOpenOpts = {
+  keyId: string;
+  orderId: string;
+  amount: number; // paise
+  currency?: string;
+  name?: string;
+  description?: string;
+  prefill?: { name?: string; contact?: string; email?: string };
+  themeColor?: string;
+  onSuccess: (r: RzpResponse) => void;
+  onDismiss?: () => void;
+  onError?: (e: any) => void;
+};
+
+export async function openRazorpayCheckout(opts: RzpOpenOpts): Promise<void> {
+  if (!razorpayLinked()) {
+    opts.onError?.(
+      new Error(
+        "Razorpay checkout works only in the installed Bisnoi app (APK / IPA), not in Expo Go. Please install the built app to complete online payments.",
+      ),
+    );
+    return;
+  }
+
+  let RazorpayCheckout: any;
+  try {
+    // Lazy require so Expo Go doesn't crash at load time when the native
+    // module isn't linked.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    RazorpayCheckout = require("react-native-razorpay").default;
+  } catch (e) {
+    opts.onError?.(e);
+    return;
+  }
+
+  const options: any = {
+    key: opts.keyId,
+    order_id: opts.orderId,
+    amount: opts.amount,
+    currency: opts.currency || "INR",
+    name: opts.name || "Bisnoi",
+    description: opts.description || "",
+    prefill: {
+      name: opts.prefill?.name || "",
+      contact: opts.prefill?.contact || "",
+      email: opts.prefill?.email || "",
+    },
+    theme: { color: opts.themeColor || "#16A34A" },
+  };
+
+  try {
+    const data = await RazorpayCheckout.open(options);
+    opts.onSuccess({
+      razorpay_payment_id: data.razorpay_payment_id,
+      razorpay_order_id: data.razorpay_order_id,
+      razorpay_signature: data.razorpay_signature,
+    });
+  } catch (error: any) {
+    if (error?.code === 0 || /cancel/i.test(error?.description || "")) {
+      opts.onDismiss?.();
+    } else {
+      opts.onError?.(error);
+    }
+  }
+}

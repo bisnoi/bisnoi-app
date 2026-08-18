@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no, viewport-fit=cover" />
+        <meta name="theme-color" content="#000000" />
+        <meta name="description" content="Bisnoi — Authentic Indian food, delivered hot." />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet" />
+        <!--
+        manifest.json provides metadata used when your web app is installed on a
+        user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+        -->
+        <!--
+        Notice the use of %PUBLIC_URL% in the tags above.
+        It will be replaced with the URL of the `public` folder during the build.
+        Only files inside the `public` folder can be referenced from the HTML.
+
+        Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
+        work correctly both with client-side routing and a non-root public URL.
+        Learn how to configure a non-root public URL by running `npm run build`.
+        -->
+        <title>Bisnoi — Authentic Indian Food, Delivered Hot</title>
+        <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
+        <style>
+            /* react-native-web root layout reset — makes flex:1 screens fill the
+               viewport. Without this, #root has no height and all flex-based
+               screens (login form, main content) collapse to 0px. */
+            html, body { margin: 0; padding: 0; height: 100%; width: 100%; }
+            body { overflow: hidden; display: flex; flex-direction: column; }
+            #root {
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                display: flex;
+                flex-direction: column;
+            }
+        </style>
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="data-pwa-injected" content="1" />
+    <meta name="description" content="Bisnoi — Authentic Indian food, delivered hot. Order from your favourite restaurants." />
+    <meta name="apple-mobile-web-app-title" content="Bisnoi" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0B0F0C" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <style>
+    /* Keep the inner tablist container TRANSPARENT so the outer floating pill
+       (styled by tabBarStyle with rgba(accent,0.85)) shows uniformly — no
+       double-shade of solid + translucent green. */
+    [role="tablist"] { background-color: transparent !important; }
+    [role="tablist"] [role="tab"] { overflow: visible !important; color: var(--tabfg, #FFFFFF); background-color: transparent !important; }
+    [role="tablist"] [role="tab"] * { overflow: visible !important; }
+    [role="tablist"] [role="tab"] svg { fill: currentColor !important; }
+    [role="heading"], [role="heading"] * { overflow: visible !important; }
+    /* Hide the Firebase phone-auth reCAPTCHA (invisible) badge in the bottom-right
+       corner. visibility:hidden keeps invisible-reCAPTCHA fully functional. */
+    .grecaptcha-badge { visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }
+    #recaptcha-container { visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }
+</style>
+    <script>window.__bip=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__bip=e;window.dispatchEvent(new Event('bipchange'));});window.addEventListener('appinstalled',function(){window.__bip=null;try{localStorage.setItem('pwa_installed','1');}catch(_){}window.dispatchEvent(new Event('bipchange'));});</script>
+    <script>(function(){try{var KEY='theme_accent';var acc=window.localStorage.getItem(KEY);if(!acc){try{var x=new XMLHttpRequest();x.open('GET','/api/settings/theme',false);x.send(null);if(x.status>=200&&x.status<300){var c=JSON.parse(x.responseText).color;if(c&&/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c)){acc=c;window.localStorage.setItem(KEY,c);}}}catch(e){}}var bg='#FFFFFF';document.documentElement.style.backgroundColor=bg;var col=acc||'#16A34A';try{var _h=col.replace('#','');if(_h.length===3){_h=_h[0]+_h[0]+_h[1]+_h[1]+_h[2]+_h[2];}var _r=parseInt(_h.substr(0,2),16),_g=parseInt(_h.substr(2,2),16),_b=parseInt(_h.substr(4,2),16);var _l=(0.299*_r+0.587*_g+0.114*_b)/255;var _fg=_l>0.62?'#0B0F0C':'#FFFFFF';document.documentElement.style.setProperty('--accent',col);document.documentElement.style.setProperty('--tabfg',_fg);}catch(e){}var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',col);}catch(e){}})();</script>
+    <script>(function(){try{var el=document.createElement('style');el.id='admin-custom-css';document.head.appendChild(el);try{var c=window.localStorage.getItem('custom_css_cache');if(c){el.textContent=c;}}catch(e){}fetch('/api/settings/custom-css').then(function(r){return r.json();}).then(function(d){var css=(d&&typeof d.css==='string')?d.css:'';el.textContent=css;try{window.localStorage.setItem('custom_css_cache',css);}catch(e){}}).catch(function(){});}catch(e){}})();</script>
+</head>
+    <body>
+        <noscript>You need to enable JavaScript to run this app.</noscript>
+        <div id="root"></div>
+        <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+                <script>
+            !(function (t, e) {
+                var o, n, p, r;
+                e.__SV ||
+                    ((window.posthog = e),
+                    (e._i = []),
+                    (e.init = function (i, s, a) {
+                        function g(t, e) {
+                            var o = e.split(".");
+                            2 == o.length && ((t = t[o[0]]), (e = o[1])),
+                                (t[e] = function () {
+                                    t.push(
+                                        [e].concat(
+                                            Array.prototype.slice.call(
+                                                arguments,
+                                                0,
+                                            ),
+                                        ),
+                                    );
+                                });
+                        }
+                        ((p = t.createElement("script")).type =
+                            "text/javascript"),
+                            (p.crossOrigin = "anonymous"),
+                            (p.async = !0),
+                            (p.src =
+                                s.api_host.replace(
+                                    ".i.posthog.com",
+                                    "-assets.i.posthog.com",
+                                ) + "/static/array.js"),
+                            (r =
+                                t.getElementsByTagName(
+                                    "script",
+                                )[0]).parentNode.insertBefore(p, r);
+                        var u = e;
+                        for (
+                            void 0 !== a ? (u = e[a] = []) : (a = "posthog"),
+                                u.people = u.people || [],
+                                u.toString = function (t) {
+                                    var e = "posthog";
+                                    return (
+                                        "posthog" !== a && (e += "." + a),
+                                        t || (e += " (stub)"),
+                                        e
+                                    );
+                                },
+                                u.people.toString = function () {
+                                    return u.toString(1) + ".people (stub)";
+                                },
+                                o =
+                                    "init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(
+                                        " ",
+                                    ),
+                                n = 0;
+                            n < o.length;
+                            n++
+                        )
+                            g(u, o[n]);
+                        e._i.push([i, s, a]);
+                    }),
+                    (e.__SV = 1));
+            })(document, window.posthog || []);
+            posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs", {
+                api_host: "https://us.i.posthog.com",
+                person_profiles: "identified_only", // or 'always' to create profiles for anonymous users as well,
+                session_recording: {
+                    recordCrossOriginIframes: true,
+                    capturePerformance: false,
+                },
+            });
+        </script>
+    <script src="/_expo/static/js/web/entry-06cc416e075092c8bbbacdefa9f20e9a.js" defer></script>
+  
+<div id="pre-splash" style="position:fixed;inset:0;z-index:99999;background:#287939;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;transition:opacity 300ms ease;">
+  <img src="/logo-full.png" alt="Bisnoi" style="width:260px;height:260px;object-fit:contain;" />
+  <div style="position:absolute;bottom:40px;font-size:13px;font-weight:800;letter-spacing:1.5px;">
+    <span style="color:#B4EFC6;">\u2022</span>&nbsp; PURE VEG. PURE GOODNESS. &nbsp;<span style="color:#B4EFC6;">\u2022</span>
+  </div>
+</div>
+<script>
+(function(){
+  try{
+    var KEY='__bisnoi_splash_shown';
+    var shown=window.sessionStorage.getItem(KEY);
+    var pre=document.getElementById('pre-splash');
+    if(shown && pre){ pre.parentNode && pre.parentNode.removeChild(pre); return; }
+    // safety net: remove after 3.5s regardless
+    setTimeout(function(){
+      var el=document.getElementById('pre-splash');
+      if(el){ el.style.opacity='0'; setTimeout(function(){ el.parentNode && el.parentNode.removeChild(el); },400); }
+    }, 3500);
+  }catch(e){}
+})();
+</script>
+
+  <script>(function(){if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}})();</script>
+</body>
+</html>

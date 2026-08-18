@@ -1,0 +1,376 @@
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView,
+  Animated, ActivityIndicator, KeyboardAvoidingView, Platform, Dimensions,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Api } from "@/src/api";
+import { colors, spacing, radius, font, shadow } from "@/src/theme";
+import { GoogleMapPicker, PickedLocation } from "@/src/components/GoogleMapPicker";
+import { useAuth } from "@/src/auth";
+import * as Location from "expo-location";
+
+const { height: SCREEN_H } = Dimensions.get("window");
+const MAP_HEIGHT = Math.round(SCREEN_H * 0.42);
+
+export type SavedAddress = {
+  id: string;
+  label: string;
+  line1: string;
+  addressDetails?: string;
+  city?: string;
+  receiverName?: string;
+  phone?: string;
+  lat?: number | null;
+  lng?: number | null;
+  is_default?: boolean;
+};
+
+function LocationPickerModal({
+  visible,
+  onClose,
+  onSaved,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSaved: (a: SavedAddress) => void;
+}) {
+  const { user } = useAuth();
+  const [search, setSearch] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [recenterTo, setRecenterTo] = useState<{ lat: number; lng: number } | null>(null);
+  const [geo, setGeo] = useState<{ lat: number; lng: number; address: string } | null>(null);
+
+  const [addressDetails, setAddressDetails] = useState("");
+  const [receiverName, setReceiverName] = useState("");
+  const [receiverPhone, setReceiverPhone] = useState("");
+  const [label, setLabel] = useState("Home");
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const fetchDeviceLocation = useCallback(async () => {
+    if (Platform.OS === "web") return;
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") return;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setRecenterTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    } catch {
+      /* ignore */
+    } finally {
+      setLocating(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (visible) {
+      setError("");
+      setAddressDetails("");
+      setReceiverName(user?.name || "");
+      setReceiverPhone(user?.phone || "");
+      setLabel("Home");
+      setGeo(null);
+      setSearch("");
+      fetchDeviceLocation();
+    }
+  }, [visible, fetchDeviceLocation, user]);
+
+  const onPickLocation = useCallback((loc: PickedLocation) => {
+    setGeo(loc);
+  }, []);
+
+  const runSearch = async () => {
+    if (!search.trim()) return;
+    setSearching(true);
+    try {
+      const results = await Location.geocodeAsync(search.trim());
+      if (results?.[0]) {
+        setRecenterTo({ lat: results[0].latitude, lng: results[0].longitude });
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const save = async () => {
+    if (geo?.lat == null || geo?.lng == null) { setError("Please pin your location on the map"); return; }
+    if (!addressDetails.trim()) { setError("Please enter floor / house no. details"); return; }
+    if (!receiverPhone.trim()) { setError("Please add receiver phone number"); return; }
+    setSaving(true);
+    setError("");
+    try {
+      const a: any = await Api.addAddress({
+        label,
+        line1: `${addressDetails.trim()}, ${geo.address}`,
+        addressDetails: addressDetails.trim(),
+        city: geo.address,
+        receiverName: receiverName.trim(),
+        phone: receiverPhone.trim(),
+        lat: geo.lat,
+        lng: geo.lng,
+      });
+      onSaved(a);
+      onClose();
+    } catch (e: any) {
+      setError(e?.message || "Could not save address");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={pickerStyles.header}>
+          <TouchableOpacity onPress={onClose} style={pickerStyles.backBtn} testID="picker-back">
+            <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={pickerStyles.searchBox}>
+            <Ionicons name="search" size={16} color={colors.textMuted} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              onSubmitEditing={runSearch}
+              placeholder="Search..."
+              placeholderTextColor={colors.textMuted}
+              style={pickerStyles.searchInput}
+              returnKeyType="search"
+            />
+            {searching && <ActivityIndicator size="small" color={colors.primary} />}
+          </View>
+        </View>
+
+        <View style={{ height: MAP_HEIGHT }}>
+          <GoogleMapPicker
+            lat={geo?.lat ?? 0}
+            lng={geo?.lng ?? 0}
+            recenterTo={recenterTo}
+            onChange={onPickLocation}
+            height={MAP_HEIGHT}
+          />
+        </View>
+
+        <ScrollView style={pickerStyles.sheet} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+          <Text style={pickerStyles.sheetTitle}>Delivery details</Text>
+
+          <View style={pickerStyles.row}>
+            <Ionicons name="location" size={16} color={colors.primary} />
+            <Text style={pickerStyles.rowTxt} numberOfLines={2}>
+              {geo?.address || "Move the map to pin your location"}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+          </View>
+
+          <TextInput
+            value={addressDetails}
+            onChangeText={setAddressDetails}
+            placeholder="Address details* (e.g. Floor, House no.)"
+            placeholderTextColor={colors.textMuted}
+            style={pickerStyles.input}
+            testID="picker-address-details"
+          />
+
+          <Text style={pickerStyles.subLabel}>Receiver details for this address</Text>
+          <View style={pickerStyles.receiverRow}>
+            <Ionicons name="call-outline" size={16} color={colors.textSecondary} />
+            <TextInput
+              value={receiverPhone}
+              onChangeText={setReceiverPhone}
+              placeholder="Your phone number"
+              placeholderTextColor={colors.textMuted}
+              style={pickerStyles.receiverInput}
+              keyboardType="phone-pad"
+              testID="picker-receiver-phone"
+            />
+          </View>
+
+          <Text style={pickerStyles.subLabel}>Save address as</Text>
+          <View style={pickerStyles.labelRow}>
+            {["Home", "Work", "Other"].map((l) => (
+              <TouchableOpacity
+                key={l}
+                onPress={() => setLabel(l)}
+                style={[pickerStyles.tagChip, label === l && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+              >
+                <Ionicons name={l === "Home" ? "home" : l === "Work" ? "briefcase" : "location"} size={13} color={label === l ? "#fff" : colors.textSecondary} />
+                <Text style={{ color: label === l ? "#fff" : colors.textSecondary, fontWeight: font.semi, fontSize: 12 }}>{l}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {error ? <Text style={pickerStyles.error}>{error}</Text> : null}
+
+          <TouchableOpacity style={pickerStyles.saveBtn} onPress={save} disabled={saving} testID="picker-save-address">
+            {saving ? <ActivityIndicator color={colors.onPrimary} size="small" /> : (
+              <Text style={{ color: colors.onPrimary, fontWeight: font.black, fontSize: 14 }}>Save address</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+export default function AddressSheet({
+  visible, onClose, addresses, selectedId, onSelect, onAdded,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  addresses: SavedAddress[];
+  selectedId: string | null;
+  onSelect: (a: SavedAddress) => void;
+  onAdded: (a: SavedAddress) => void;
+}) {
+  const slide = useRef(new Animated.Value(0)).current;
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      slide.setValue(0);
+      Animated.spring(slide, { toValue: 1, useNativeDriver: true, damping: 20, stiffness: 170 }).start();
+    }
+  }, [visible, slide]);
+
+  const translateY = slide.interpolate({ inputRange: [0, 1], outputRange: [520, 0] });
+
+  return (
+    <>
+      <Modal visible={visible && !pickerOpen} transparent animationType="fade" onRequestClose={onClose}>
+        <View style={styles.backdrop}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+          <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]} testID="address-sheet">
+            <View style={styles.header}>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="address-sheet-close">
+                <Ionicons name="chevron-down" size={20} color={colors.textPrimary} />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Select delivery address</Text>
+              <View style={{ width: 36 }} />
+            </View>
+
+            <ScrollView style={{ maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+              {addresses.map((a) => {
+                const on = selectedId === a.id;
+                return (
+                  <TouchableOpacity
+                    key={a.id}
+                    activeOpacity={0.85}
+                    onPress={() => { onSelect(a); onClose(); }}
+                    style={[styles.addrCard, on && { borderColor: colors.primary, backgroundColor: colors.primarySoft }]}
+                    testID={`sheet-addr-${a.id}`}
+                  >
+                    <View style={styles.addrIc}>
+                      <Ionicons name={a.label === "Work" ? "briefcase" : a.label === "Home" ? "home" : "location"} size={16} color={colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={styles.addrLabel}>{a.label}</Text>
+                        {a.is_default && <View style={styles.defPill}><Text style={styles.defPillTxt}>DEFAULT</Text></View>}
+                      </View>
+                      <Text style={styles.addrLine} numberOfLines={2}>{a.line1}</Text>
+                      {!!a.receiverName && (
+                        <Text style={styles.addrReceiver}>{a.receiverName}{a.phone ? `, ${a.phone}` : ""}</Text>
+                      )}
+                    </View>
+                    <View style={[styles.radio, on && { borderColor: colors.primary }]}>
+                      {on && <View style={styles.radioDot} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+
+              <TouchableOpacity style={styles.addNewRow} activeOpacity={0.85} onPress={() => setPickerOpen(true)} testID="sheet-add-new-address">
+                <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+                <Text style={styles.addNewTxt}>Add new address</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      <LocationPickerModal
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSaved={(a) => { onAdded(a); onClose(); }}
+      />
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md, maxHeight: "88%",
+    alignSelf: "center", width: "100%", maxWidth: 560,
+  },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: spacing.md },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceAlt, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 17, fontWeight: font.black, color: colors.textPrimary },
+  addrCard: {
+    flexDirection: "row", alignItems: "center", gap: 10, padding: spacing.md, marginBottom: spacing.sm,
+    borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface, ...shadow.card,
+  },
+  addrIc: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  addrLabel: { fontSize: 14, fontWeight: font.black, color: colors.textPrimary },
+  addrLine: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  addrReceiver: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  defPill: { backgroundColor: colors.successSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill },
+  defPillTxt: { color: colors.success, fontSize: 8, fontWeight: font.black, letterSpacing: 0.5 },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center" },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
+  addNewRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 4 },
+  addNewTxt: { color: colors.primary, fontWeight: font.black, fontSize: 14 },
+});
+
+const pickerStyles = StyleSheet.create({
+  header: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm,
+  },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceAlt, alignItems: "center", justifyContent: "center" },
+  searchBox: {
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, paddingHorizontal: 14, height: 40,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: colors.textPrimary },
+  currentLocBtn: {
+    position: "absolute", bottom: 14, alignSelf: "center",
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 10,
+    borderWidth: 1, borderColor: colors.primary, ...shadow.card,
+  },
+  currentLocTxt: { color: colors.primary, fontWeight: font.bold, fontSize: 13 },
+  sheet: {
+    flex: 1, backgroundColor: colors.background,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md, ...shadow.card,
+  },
+  sheetTitle: { fontSize: 13, fontWeight: font.black, color: colors.textSecondary, marginBottom: spacing.sm, textTransform: "uppercase", letterSpacing: 0.5 },
+  row: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: spacing.md, paddingVertical: 12, marginBottom: spacing.sm,
+  },
+  rowTxt: { flex: 1, fontSize: 13, color: colors.textPrimary, fontWeight: font.semi },
+  input: {
+    borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, paddingHorizontal: spacing.md,
+    paddingVertical: 10, fontSize: 14, color: colors.textPrimary, minHeight: 44, backgroundColor: colors.background,
+    marginBottom: spacing.sm,
+  },
+  subLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: font.semi, marginTop: spacing.sm, marginBottom: 6 },
+  receiverRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: spacing.md, paddingVertical: 4,
+  },
+  receiverInput: { flex: 1, fontSize: 14, color: colors.textPrimary, paddingVertical: 10 },
+  labelRow: { flexDirection: "row", gap: 8, marginBottom: spacing.sm },
+  tagChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceAlt },
+  error: { color: colors.error, fontSize: 13, fontWeight: font.semi, marginTop: spacing.sm },
+  saveBtn: { marginTop: spacing.md, backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: "center" },
+});

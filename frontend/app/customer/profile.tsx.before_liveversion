@@ -1,0 +1,357 @@
+import React, { useCallback, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl, Image, Platform } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter, useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@/src/auth";
+import { Api } from "@/src/api";
+import { colors, spacing, radius, font, shadow } from "@/src/theme";
+import { Button } from "@/src/components/ui";
+import { ConfirmModal } from "@/src/components/ConfirmModal";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { ApplicationStatusPill } from "@/src/applicationStatus";
+
+type MenuItem = {
+  icon: keyof typeof Ionicons.glyphMap;
+  iconColor?: string;
+  bg?: string;
+  label: string;
+  sub?: string;
+  badge?: string;
+  badgeColor?: string;
+  onPress?: () => void;
+};
+
+export default function Profile() {
+  const router = useRouter();
+  const { user, signOut } = useAuth();
+  const [apps, setApps] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [confirmOut, setConfirmOut] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await Api.myApplications();
+      setApps((r as any[]) || []);
+    } catch {
+      setApps([]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const onRefresh = () => { setRefreshing(true); load(); };
+
+  const logout = () => setConfirmOut(true);
+  const doSignOut = async () => {
+    setConfirmOut(false);
+    await signOut();
+    router.replace("/login" as any);
+  };
+
+  // GUEST VIEW (Force login screen for Android/Web, full menu for iOS)
+  if (!user && Platform.OS !== "ios") {
+    return (
+      <SafeAreaView style={styles.safe} edges={["top"]}>
+        <ScreenHeader title="Profile" />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
+          <Ionicons name="person-circle-outline" size={80} color={colors.primary} />
+          <Text style={{ fontSize: 22, fontWeight: font.black, color: colors.textPrimary, marginTop: 16, textAlign: "center" }}>
+            You're not logged in
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, marginTop: 8, textAlign: "center" }}>
+            Login to view your orders, addresses, and more.
+          </Text>
+          <TouchableOpacity
+            style={{ marginTop: 28, backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 40, borderRadius: radius.pill }}
+            activeOpacity={0.85}
+            onPress={() => router.push("/login" as any)}
+          >
+            <Text style={{ color: colors.onPrimary, fontWeight: font.black, fontSize: 16 }}>Login / Sign Up</Text>
+          </TouchableOpacity>
+          <Text style={styles.version}>Bisnoi v1.0 • Demo Build</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const isAdmin = user?.role === "admin";
+  const isOwner = user?.role === "restaurant_owner";
+  const isRider = user?.role === "rider";
+
+  const activeApplication = apps.find((a) => ["pending", "clarification_requested"].includes(a.status));
+  const partnerApproved = apps.some((a) => a.type === "restaurant_partner" && a.status === "approved");
+  const riderApproved = apps.some((a) => a.type === "rider" && a.status === "approved");
+
+  const partnerLine = isOwner || partnerApproved
+    ? "You're an approved partner"
+    : "List your restaurant on Bisnoi";
+  const riderLine = isRider || riderApproved
+    ? "You're an approved rider"
+    : "Earn by delivering near you";
+
+  // Role-specific shortcuts
+  const roleShortcuts: MenuItem[] = [];
+  if (isAdmin) {
+    roleShortcuts.push({
+      icon: "shield-checkmark",
+      iconColor: "#fff",
+      bg: colors.primary,
+      label: "Admin Panel",
+      sub: "Review applications & manage platform",
+      badge: "ADMIN",
+      badgeColor: colors.primary,
+      onPress: () => router.push("/customer/admin-panel" as any),
+    });
+  }
+  if (isOwner) {
+    roleShortcuts.push({
+      icon: "storefront",
+      iconColor: "#fff",
+      bg: colors.success,
+      label: "Restaurant Dashboard",
+      sub: "Manage menu & orders",
+      badge: "OWNER",
+      badgeColor: colors.success,
+      onPress: () => router.push("/owner" as any),
+    });
+  }
+  if (isRider) {
+    roleShortcuts.push({
+      icon: "bicycle",
+      iconColor: "#fff",
+      bg: colors.warning,
+      label: "Rider Dashboard",
+      sub: "View active deliveries",
+      badge: "RIDER",
+      badgeColor: colors.warning,
+      onPress: () => router.push("/rider" as any),
+    });
+  }
+
+  const menu: MenuItem[] = [
+    { icon: "receipt", label: "My Orders", sub: "Track current & past orders", onPress: () => router.push("/customer/orders" as any) },
+    { icon: "heart", label: "Favorites", sub: "Your saved restaurants", onPress: () => router.push("/customer/favorites" as any) },
+    { icon: "location", label: "Addresses", sub: "Manage saved addresses", onPress: () => router.push("/customer/addresses" as any) },
+    { icon: "card", label: "Payment methods", sub: "Manage your payment options", onPress: () => router.push("/customer/payments" as any) },
+    { icon: "alert-circle", label: "My Complaints", sub: "Track issues you've reported", onPress: () => router.push("/customer/complaints" as any) },
+    { icon: "help-circle", label: "Help & Support", sub: "FAQs and customer care", onPress: () => router.push("/customer/help" as any) },
+    { icon: "chatbubbles", label: "FAQs", sub: "Quick answers to common questions", onPress: () => router.push("/customer/faqs" as any) },
+    { icon: "call", label: "Contact Us", sub: "Phone, email & WhatsApp", onPress: () => router.push("/customer/contact-us" as any) },
+    { icon: "document-text", label: "Terms & Conditions", onPress: () => router.push("/customer/terms" as any) },
+    { icon: "shield-checkmark", label: "Privacy Policy", onPress: () => router.push("/customer/privacy" as any) },
+    { icon: "cash-outline", label: "Refund Policy", onPress: () => router.push("/customer/refund-policy" as any) },
+    { icon: "close-circle-outline", label: "Cancellation Policy", onPress: () => router.push("/customer/cancellation-policy" as any) },
+    { icon: "settings", label: "Settings", sub: "Edit profile & account options", onPress: () => router.push("/customer/settings" as any) },
+  ];
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <ScreenHeader title="Profile" />
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      >
+        <View style={styles.hero}>
+          {user?.avatar ? (
+            <Image source={{ uri: user.avatar }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={{ color: colors.onPrimary, fontWeight: font.black, fontSize: 28 }}>
+                {(user?.name || "G")[0].toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name}>{user?.name || "Guest User"}</Text>
+            <Text style={styles.phone}>{user ? `+91 ${user.phone}` : "Login to access your account"}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+              {user && (
+                <View style={[styles.roleBadge, isAdmin && { backgroundColor: colors.primarySoft }]}>
+                  <Ionicons
+                    name={isAdmin ? "shield-checkmark" : "checkmark-circle"}
+                    size={12}
+                    color={isAdmin ? colors.primary : colors.success}
+                  />
+                  <Text style={{ color: isAdmin ? colors.primary : colors.success, fontSize: 11, fontWeight: font.bold, textTransform: "uppercase" }}>
+                    {user?.role}
+                  </Text>
+                </View>
+              )}
+              {(user as any)?.account_id ? (
+                <View style={styles.acctBadge} testID="profile-account-id">
+                  <Ionicons name="id-card" size={11} color={colors.textSecondary} />
+                  <Text style={styles.acctBadgeTxt} selectable>{(user as any).account_id}</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </View>
+
+        {/* Role-specific shortcuts (Admin / Owner / Rider) */}
+        {roleShortcuts.length > 0 && (
+          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.sm }}>
+            {roleShortcuts.map((m) => (
+              <TouchableOpacity key={m.label} style={styles.heroAction} activeOpacity={0.9} onPress={m.onPress}>
+                <View style={[styles.heroIc, { backgroundColor: m.bg }]}>
+                  <Ionicons name={m.icon} size={22} color={m.iconColor || "#fff"} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.heroActionLabel}>{m.label}</Text>
+                    {m.badge && (
+                      <View style={[styles.miniBadge, { backgroundColor: m.badgeColor }]}>
+                        <Text style={styles.miniBadgeTxt}>{m.badge}</Text>
+                      </View>
+                    )}
+                  </View>
+                  {m.sub && <Text style={styles.heroActionSub}>{m.sub}</Text>}
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Become a Partner section — hidden for admin users (they review, not apply) */}
+        {!isAdmin && (
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+          <Text style={styles.sectionLabel}>GROW WITH BISNOI</Text>
+
+          <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+            <TouchableOpacity
+              style={styles.partnerCard}
+              activeOpacity={0.85}
+              onPress={() => router.push("/customer/apply/partner" as any)}
+            >
+              <View style={[styles.partnerIc, { backgroundColor: colors.primarySoft }]}>
+                <Ionicons name="restaurant" size={22} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.partnerTitle}>Become a Restaurant Partner</Text>
+                <Text style={styles.partnerSub}>{partnerLine}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.partnerCard}
+              activeOpacity={0.85}
+              onPress={() => router.push("/customer/apply/rider" as any)}
+            >
+              <View style={[styles.partnerIc, { backgroundColor: colors.successSoft }]}>
+                <Ionicons name="bicycle" size={22} color={colors.success} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.partnerTitle}>Become a Delivery Rider</Text>
+                <Text style={styles.partnerSub}>{riderLine}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Active application snapshot */}
+          {apps.length > 0 && (
+            <TouchableOpacity
+              style={styles.appSnap}
+              activeOpacity={0.85}
+              onPress={() => router.push("/customer/apply" as any)}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.appSnapTitle}>
+                  {activeApplication ? "Your application is in review" : "View my applications"}
+                </Text>
+                <Text style={styles.appSnapSub}>
+                  {apps.length} application{apps.length > 1 ? "s" : ""} · tap to see details
+                </Text>
+              </View>
+              {activeApplication ? <ApplicationStatusPill status={activeApplication.status} /> : (
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+        )}
+
+        {/* Account menu */}
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.sm }}>
+          <Text style={styles.sectionLabel}>ACCOUNT</Text>
+          <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+            {menu.map((m) => (
+              <TouchableOpacity key={m.label} style={styles.row} activeOpacity={0.8} onPress={m.onPress}>
+                <View style={styles.icBox}>
+                  <Ionicons name={m.icon} size={20} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rLabel}>{m.label}</Text>
+                  {m.sub && <Text style={styles.rSub}>{m.sub}</Text>}
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.lg }}>
+          {user ? (
+            <Button title="Sign Out" icon="log-out" variant="secondary" onPress={logout} full />
+          ) : (
+            <Button title="Login / Sign Up" icon="log-in" variant="primary" onPress={() => router.push("/login" as any)} full />
+          )}
+        </View>
+
+        <Text style={styles.version}>Bisnoi v1.0 • Demo Build</Text>
+      </ScrollView>
+      <ConfirmModal
+        visible={confirmOut}
+        title="Sign out?"
+        message="You'll need to login again to access your account."
+        confirmLabel="Sign out"
+        destructive
+        onConfirm={doSignOut}
+        onCancel={() => setConfirmOut(false)}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  hero: { flexDirection: "row", alignItems: "center", gap: 16, padding: spacing.lg, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  avatar: { width: 70, height: 70, borderRadius: 35, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  name: { fontSize: 20, fontWeight: font.black, color: colors.textPrimary },
+  phone: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
+  roleBadge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.successSoft },
+  acctBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border,
+  },
+  acctBadgeTxt: { fontSize: 11, fontWeight: font.black, color: colors.textSecondary, letterSpacing: 0.5, fontVariant: ["tabular-nums"] } as any,
+
+  heroAction: { flexDirection: "row", alignItems: "center", gap: 14, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, ...shadow.card },
+  heroIc: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  heroActionLabel: { fontSize: 15, fontWeight: font.black, color: colors.textPrimary },
+  heroActionSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  miniBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill },
+  miniBadgeTxt: { color: "#fff", fontSize: 9, fontWeight: font.black, letterSpacing: 0.5 },
+
+  sectionLabel: { fontSize: 12, fontWeight: font.black, color: colors.textSecondary, letterSpacing: 0.5 },
+
+  partnerCard: { flexDirection: "row", alignItems: "center", gap: 14, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, ...shadow.card },
+  partnerIc: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  partnerTitle: { fontSize: 14, fontWeight: font.bold, color: colors.textPrimary },
+  partnerSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+
+  appSnap: { flexDirection: "row", alignItems: "center", gap: 12, padding: spacing.md, marginTop: spacing.sm, backgroundColor: colors.warningSoft, borderRadius: radius.md, borderWidth: 1, borderColor: colors.warning + "40" },
+  appSnapTitle: { fontSize: 14, fontWeight: font.bold, color: colors.textPrimary },
+  appSnapSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+
+  row: { flexDirection: "row", alignItems: "center", gap: 14, padding: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, ...shadow.card },
+  icBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  rLabel: { fontSize: 14, fontWeight: font.bold, color: colors.textPrimary },
+  rSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  version: { textAlign: "center", color: colors.textMuted, fontSize: 11, marginTop: spacing.xl },
+});

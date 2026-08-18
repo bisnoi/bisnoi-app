@@ -1,0 +1,237 @@
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView,
+  Animated, ActivityIndicator, KeyboardAvoidingView, Platform,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Api } from "@/src/api";
+import { colors, spacing, radius, font, shadow } from "@/src/theme";
+import { GoogleMapPicker, PickedLocation } from "@/src/components/GoogleMapPicker";
+import * as Location from "expo-location";
+
+export type SavedAddress = {
+  id: string; label: string; line1: string; city?: string; phone?: string;
+  lat?: number | null; lng?: number | null; is_default?: boolean;
+};
+
+export default function AddressSheet({
+  visible, onClose, addresses, selectedId, onSelect, onAdded,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  addresses: SavedAddress[];
+  selectedId: string | null;
+  onSelect: (a: SavedAddress) => void;
+  onAdded: (a: SavedAddress) => void;
+}) {
+  const slide = useRef(new Animated.Value(0)).current;
+  const [formOpen, setFormOpen] = useState(false);
+  const [label, setLabel] = useState("Home");
+  const [line1, setLine1] = useState("");
+  const [city, setCity] = useState("Bengaluru");
+  const [showMap, setShowMap] = useState(false);
+  const [geo, setGeo] = useState<{ lat: number; lng: number; address: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (visible) {
+      setError("");
+      setFormOpen(addresses.length === 0);
+      slide.setValue(0);
+      Animated.spring(slide, { toValue: 1, useNativeDriver: true, damping: 20, stiffness: 170 }).start();
+    }
+  }, [visible, slide, addresses.length]);
+
+  const translateY = slide.interpolate({ inputRange: [0, 1], outputRange: [520, 0] });
+  const onPickLocation = useCallback((loc: PickedLocation) => { setGeo(loc); }, []);
+
+  const [recenterTo, setRecenterTo] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+
+  const fetchDeviceLocation = async () => {
+    if (Platform.OS === "web") return;
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") return;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setRecenterTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    } catch {
+      /* ignore */
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const save = async () => {
+    if (!line1.trim()) { setError("Please enter the address line"); return; }
+    if (geo?.lat == null || geo?.lng == null) { setError("Please select your location on the map"); return; }
+    setSaving(true);
+    setError("");
+    try {
+      const a: any = await Api.addAddress({ label, line1: line1.trim(), city: city.trim(), lat: geo?.lat, lng: geo?.lng });
+      setLine1("");
+      setGeo(null);
+      setShowMap(false);
+      setFormOpen(false);
+      onAdded(a);
+    } catch (e: any) {
+      setError(e?.message || "Could not save address");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]} testID="address-sheet">
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="address-sheet-close">
+              <Ionicons name="chevron-down" size={20} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Select delivery address</Text>
+            <View style={{ width: 36 }} />
+          </View>
+
+          <ScrollView style={{ maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+            {addresses.map((a) => {
+              const on = selectedId === a.id;
+              return (
+                <TouchableOpacity
+                  key={a.id}
+                  activeOpacity={0.85}
+                  onPress={() => { onSelect(a); onClose(); }}
+                  style={[styles.addrCard, on && { borderColor: colors.primary, backgroundColor: colors.primarySoft }]}
+                  testID={`sheet-addr-${a.id}`}
+                >
+                  <View style={styles.addrIc}>
+                    <Ionicons name={a.label === "Work" ? "briefcase" : a.label === "Home" ? "home" : "location"} size={16} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={styles.addrLabel}>{a.label}</Text>
+                      {a.is_default && <View style={styles.defPill}><Text style={styles.defPillTxt}>DEFAULT</Text></View>}
+                    </View>
+                    <Text style={styles.addrLine} numberOfLines={2}>{a.line1}{a.city ? `, ${a.city}` : ""}</Text>
+                  </View>
+                  <View style={[styles.radio, on && { borderColor: colors.primary }]}>
+                    {on && <View style={styles.radioDot} />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+
+            <TouchableOpacity style={styles.addNewRow} activeOpacity={0.85} onPress={() => setFormOpen((s) => !s)} testID="sheet-add-new-address">
+              <Ionicons name={formOpen ? "remove-circle-outline" : "add-circle-outline"} size={18} color={colors.primary} />
+              <Text style={styles.addNewTxt}>{formOpen ? "Hide new address form" : "Add new address"}</Text>
+            </TouchableOpacity>
+
+            {formOpen && (
+              <View style={styles.form}>
+                <View style={styles.labelRow}>
+                  {["Home", "Work", "Other"].map((l) => (
+                    <TouchableOpacity key={l} onPress={() => setLabel(l)} style={[styles.tagChip, label === l && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                      <Ionicons name={l === "Home" ? "home" : l === "Work" ? "briefcase" : "location"} size={13} color={label === l ? "#fff" : colors.textSecondary} />
+                      <Text style={{ color: label === l ? "#fff" : colors.textSecondary, fontWeight: font.semi, fontSize: 12 }}>{l}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  value={line1}
+                  onChangeText={setLine1}
+                  placeholder="Flat / House no, Street, Area"
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.input}
+                  multiline
+                  testID="sheet-address-line"
+                />
+                <TextInput
+                  value={city}
+                  onChangeText={setCity}
+                  placeholder="City"
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.input, { marginTop: spacing.sm }]}
+                />
+                <TouchableOpacity
+                  style={styles.mapToggle}
+                  onPress={() => {
+                    const next = !showMap;
+                    setShowMap(next);
+                    if (next) fetchDeviceLocation();
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="map" size={18} color={colors.primary} />
+                  <Text style={styles.mapToggleTxt}>
+                    {locating ? "Fetching location..." : showMap ? "Hide map" : geo ? "Change location on map" : "Pin exact location on map"}
+                  </Text>
+                  <Ionicons name={showMap ? "chevron-up" : "chevron-down"} size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+                {showMap && (
+                  <View style={{ marginTop: spacing.sm }}>
+                    <GoogleMapPicker lat={geo?.lat ?? 12.9716} lng={geo?.lng ?? 77.5946} recenterTo={recenterTo} onChange={onPickLocation} height={260} />
+                    <Text style={styles.mapHint}>Move the map so the pin sits on your exact doorstep.</Text>
+                  </View>
+                )}
+                {geo && (
+                  <View style={styles.pinnedBox}>
+                    <Ionicons name="location" size={16} color={colors.success} />
+                    <Text style={styles.pinnedTxt} numberOfLines={2}>Pinned: {geo.address || `${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}`}</Text>
+                  </View>
+                )}
+                {error ? <Text style={styles.error}>{error}</Text> : null}
+                <TouchableOpacity style={styles.saveBtn} onPress={save} disabled={saving} testID="sheet-save-address">
+                  {saving ? <ActivityIndicator color={colors.onPrimary} size="small" /> : (
+                    <Text style={{ color: colors.onPrimary, fontWeight: font.black, fontSize: 14 }}>Save & deliver here</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md, maxHeight: "88%",
+    alignSelf: "center", width: "100%", maxWidth: 560,
+  },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: spacing.md },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceAlt, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 17, fontWeight: font.black, color: colors.textPrimary },
+  addrCard: {
+    flexDirection: "row", alignItems: "center", gap: 10, padding: spacing.md, marginBottom: spacing.sm,
+    borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface, ...shadow.card,
+  },
+  addrIc: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  addrLabel: { fontSize: 14, fontWeight: font.black, color: colors.textPrimary },
+  addrLine: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  defPill: { backgroundColor: colors.successSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill },
+  defPillTxt: { color: colors.success, fontSize: 8, fontWeight: font.black, letterSpacing: 0.5 },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center" },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
+  addNewRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 4 },
+  addNewTxt: { color: colors.primary, fontWeight: font.black, fontSize: 14 },
+  form: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md, ...shadow.card },
+  labelRow: { flexDirection: "row", gap: 8, marginBottom: spacing.md },
+  tagChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceAlt },
+  input: { borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 14, color: colors.textPrimary, minHeight: 44, backgroundColor: colors.background },
+  mapToggle: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: spacing.md, paddingVertical: 10, paddingHorizontal: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  mapToggleTxt: { flex: 1, color: colors.primary, fontWeight: font.bold, fontSize: 13 },
+  mapHint: { color: colors.textSecondary, fontSize: 12, marginTop: 6 },
+  pinnedBox: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: spacing.sm, padding: 10, borderRadius: radius.md, backgroundColor: colors.successSoft },
+  pinnedTxt: { flex: 1, color: colors.textPrimary, fontSize: 12, fontWeight: font.semi },
+  error: { color: colors.error, fontSize: 13, fontWeight: font.semi, marginTop: spacing.sm },
+  saveBtn: { marginTop: spacing.md, backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 12, alignItems: "center" },
+});

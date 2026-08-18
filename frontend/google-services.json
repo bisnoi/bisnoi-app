@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "871721171799",
+    "project_id": "bisnoi-app-f8943",
+    "storage_bucket": "bisnoi-app-f8943.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:871721171799:android:1c695b36605ff138e51c12",
+        "android_client_info": {
+          "package_name": "com.bisnoi.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsuvQFLgHNlQhziuUOxlsE0F4oSRXTPtw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

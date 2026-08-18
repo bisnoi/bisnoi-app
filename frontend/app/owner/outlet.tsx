@@ -1,0 +1,321 @@
+import React, { useCallback, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image, Platform, Switch } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "expo-router";
+import { Api } from "@/src/api";
+import { colors, spacing, radius, font, shadow } from "@/src/theme";
+import { Button } from "@/src/components/ui";
+import { Screen, ScreenHeader } from "@/src/components/ScreenHeader";
+import { compressDataUrl } from "@/src/utils/imageCompress";
+import { TimeInput } from "@/src/components/form";
+import { GoogleMapPicker } from "@/src/components/GoogleMapPicker";
+
+function Field({ label, value, onChangeText, placeholder, keyboardType, multiline }: any) {
+  return (
+    <View style={{ marginBottom: spacing.md }}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.textMuted}
+        keyboardType={keyboardType} multiline={multiline}
+        style={[styles.input, multiline && { height: 84, textAlignVertical: "top", paddingTop: 12 }]} />
+    </View>
+  );
+}
+
+function Section({ title, icon, children }: any) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.secHead}><Ionicons name={icon} size={16} color={colors.primary} /><Text style={styles.secTitle}>{title}</Text></View>
+      {children}
+    </View>
+  );
+}
+
+export default function OwnerOutlet() {
+  const [rest, setRest] = useState<any>(null);
+  const [f, setF] = useState<any>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await Api.ownerOutlet();
+      setRest(r);
+      setF({
+        name: r.name || "", description: r.description || "", cuisines: (r.cuisines || []).join(", "),
+        contact_phone: r.contact_phone || "", contact_email: r.contact_email || "",
+        contact_numbers: (r.contact_numbers || []).join(", "),
+        opening_time: r.opening_time || "", closing_time: r.closing_time || "", operating_hours: r.operating_hours_text || r.operating_hours || "",
+        address: r.address || "", city: r.city || "", pincode: r.pincode || "",
+        lat: String(r.lat ?? ""), lng: String(r.lng ?? ""),
+        pickup_instructions: r.pickup_instructions || "", smart_link: r.smart_link || "", image: r.image || "",
+        auto_accept_orders: !!r.auto_accept_orders,
+      });
+    } catch (e: any) { if (Platform.OS === "web") console.warn(e?.message); }
+    finally { setLoading(false); }
+  }, []);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const set = (k: string) => (v: string) => setF((p: any) => ({ ...p, [k]: v }));
+
+  const pickImage = () => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = "image/*";
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const compressed = await compressDataUrl(String(reader.result || ""));
+        setF((p: any) => ({ ...p, image: compressed }));
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const body: any = {
+        name: f.name, description: f.description, contact_phone: f.contact_phone, contact_email: f.contact_email,
+        opening_time: f.opening_time, closing_time: f.closing_time, operating_hours: f.operating_hours,
+        address: f.address, city: f.city, pincode: f.pincode, pickup_instructions: f.pickup_instructions,
+        smart_link: f.smart_link, image: f.image,
+        auto_accept_orders: !!f.auto_accept_orders,
+        cuisines: f.cuisines ? f.cuisines.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+        contact_numbers: f.contact_numbers ? f.contact_numbers.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+      };
+      if (f.lat) body.lat = parseFloat(f.lat);
+      if (f.lng) body.lng = parseFloat(f.lng);
+      await Api.ownerUpdateOutlet(body);
+      await load();
+      if (Platform.OS === "web") window.alert("Outlet info saved");
+    } catch (e: any) { if (Platform.OS === "web") window.alert(e?.message || "Failed to save"); }
+    finally { setSaving(false); }
+  };
+
+  // Instant-save for the auto-accept toggle — no need to hit "Save Changes".
+  const toggleAutoAccept = async (val: boolean) => {
+    setF((p: any) => ({ ...p, auto_accept_orders: val }));
+    try {
+      await Api.ownerUpdateOutlet({ auto_accept_orders: val });
+    } catch (e: any) {
+      // Revert on failure
+      setF((p: any) => ({ ...p, auto_accept_orders: !val }));
+      if (Platform.OS === "web") window.alert(e?.message || "Failed to update auto-accept setting");
+    }
+  };
+
+  const openMap = () => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const q = f.lat && f.lng ? `${f.lat},${f.lng}` : encodeURIComponent(`${f.name} ${f.address} ${f.city}`);
+      window.open(`https://www.google.com/maps?q=${q}`, "_blank");
+    }
+  };
+
+  if (loading) return <Screen><ScreenHeader title="Outlet Info" /><ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} /></Screen>;
+
+  return (
+    <Screen>
+      <ScreenHeader title="Outlet Information" subtitle="Manage your outlet details" />
+      <ScrollView contentContainerStyle={{ paddingBottom: 110 }}>
+        {/* Hero image */}
+        <TouchableOpacity activeOpacity={0.9} onPress={pickImage} style={styles.heroWrap} testID="outlet-image">
+          {f.image ? <Image source={{ uri: f.image }} style={styles.hero} /> : <View style={[styles.hero, styles.heroEmpty]}><Ionicons name="image" size={40} color={colors.textMuted} /></View>}
+          <View style={styles.camBadge}><Ionicons name="camera" size={16} color={colors.onPrimary} /><Text style={styles.camTxt}>Change photo</Text></View>
+        </TouchableOpacity>
+
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+          {rest?.account_id ? (
+            <View style={styles.acctCard} testID="outlet-account-id">
+              <Ionicons name="id-card" size={16} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.acctLbl}>Your account ID</Text>
+                <Text style={styles.acctValue} selectable>{rest.account_id}</Text>
+              </View>
+              <Text style={styles.acctHint}>Share this with our support team for faster help.</Text>
+            </View>
+          ) : null}
+
+          <Section title="About Outlet" icon="information-circle">
+            <Field label="Outlet name" value={f.name} onChangeText={set("name")} placeholder="Restaurant name" />
+            <Field label="Description" value={f.description} onChangeText={set("description")} placeholder="Short description" multiline />
+            <Field label="Cuisines (comma separated)" value={f.cuisines} onChangeText={set("cuisines")} placeholder="North Indian, Chinese" />
+          </Section>
+
+          {(rest?.key_account_person || rest?.manager) ? (
+            <Section title="Your Bisnoi contacts" icon="people">
+              <Text style={styles.roHint}>These are the people from our team who look after your outlet. Managed by Bisnoi admin — get in touch anytime.</Text>
+              {rest?.key_account_person?.name || rest?.key_account_person?.phone ? (
+                <View style={styles.contactCard} testID="kap-readonly">
+                  <View style={styles.contactBadge}><Ionicons name="ribbon" size={14} color={colors.onPrimary} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.contactRole}>Key Account Person</Text>
+                    <Text style={styles.contactName}>{rest.key_account_person.name || "—"}</Text>
+                    {rest.key_account_person.phone ? (
+                      <Text style={styles.contactLine}>📞 {rest.key_account_person.phone}</Text>
+                    ) : null}
+                    {rest.key_account_person.email ? (
+                      <Text style={styles.contactLine}>✉︎ {rest.key_account_person.email}</Text>
+                    ) : null}
+                    {rest.key_account_person.notes ? (
+                      <Text style={styles.contactNotes}>{rest.key_account_person.notes}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+              {rest?.manager?.name || rest?.manager?.phone ? (
+                <View style={styles.contactCard} testID="mgr-readonly">
+                  <View style={[styles.contactBadge, { backgroundColor: colors.textSecondary }]}><Ionicons name="briefcase" size={14} color={colors.onPrimary} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.contactRole}>Manager</Text>
+                    <Text style={styles.contactName}>{rest.manager.name || "—"}</Text>
+                    {rest.manager.phone ? (
+                      <Text style={styles.contactLine}>📞 {rest.manager.phone}</Text>
+                    ) : null}
+                    {rest.manager.email ? (
+                      <Text style={styles.contactLine}>✉︎ {rest.manager.email}</Text>
+                    ) : null}
+                    {rest.manager.notes ? (
+                      <Text style={styles.contactNotes}>{rest.manager.notes}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+            </Section>
+          ) : null}
+
+          <Section title="Order Management" icon="flash">
+            <View style={styles.toggleRow} testID="auto-accept-row">
+              <View style={{ flex: 1, paddingRight: spacing.md }}>
+                <Text style={styles.toggleTitle}>Auto-accept incoming orders</Text>
+                <Text style={styles.toggleSub}>
+                  {f.auto_accept_orders
+                    ? "New orders are accepted instantly and pushed to riders — no manual tap needed."
+                    : "New orders wait for you to tap Accept in the Orders screen."}
+                </Text>
+              </View>
+              <Switch
+                testID="auto-accept-switch"
+                value={!!f.auto_accept_orders}
+                onValueChange={toggleAutoAccept}
+                trackColor={{ true: colors.primary, false: colors.borderStrong }}
+                thumbColor={f.auto_accept_orders ? colors.onPrimary : "#f4f4f4"}
+              />
+            </View>
+          </Section>
+
+          <Section title="Contact Details" icon="call">
+            <Field label="Primary phone" value={f.contact_phone} onChangeText={set("contact_phone")} placeholder="Phone" keyboardType="phone-pad" />
+            <Field label="Email" value={f.contact_email} onChangeText={set("contact_email")} placeholder="Email" />
+          </Section>
+
+          <Section title="Outlet Contact Numbers" icon="keypad">
+            <Field label="Numbers (comma separated)" value={f.contact_numbers} onChangeText={set("contact_numbers")} placeholder="080-1234, 9876543210" />
+          </Section>
+
+          <Section title="Outlet Timings" icon="time">
+            <View style={{ gap: 4 }}>
+              <TimeInput label="Opens" value={f.opening_time} onChangeText={set("opening_time")} testID="outlet-opening-time" />
+              <TimeInput label="Closes" value={f.closing_time} onChangeText={set("closing_time")} testID="outlet-closing-time" />
+            </View>
+          </Section>
+
+          <Section title="Name, Address & Location" icon="location">
+            <Field label="Address" value={f.address} onChangeText={set("address")} placeholder="Street address" multiline />
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              <View style={{ flex: 1 }}><Field label="City" value={f.city} onChangeText={set("city")} placeholder="City" /></View>
+              <View style={{ flex: 1 }}><Field label="Pincode" value={f.pincode} onChangeText={set("pincode")} placeholder="560001" keyboardType="numeric" /></View>
+            </View>
+            <Text style={styles.label}>Pin your outlet's exact location</Text>
+            <View style={{ marginBottom: spacing.md }}>
+              <GoogleMapPicker
+                lat={f.lat ? parseFloat(f.lat) : undefined}
+                lng={f.lng ? parseFloat(f.lng) : undefined}
+                height={260}
+                onChange={(loc) => setF((p: any) => ({
+                  ...p,
+                  lat: String(loc.lat),
+                  lng: String(loc.lng),
+                  address: loc.address || p.address,
+                  city: loc.city || p.city,
+                  pincode: loc.pincode || p.pincode,
+                }))}
+              />
+            </View>
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              <View style={{ flex: 1 }}><Field label="Latitude" value={f.lat} onChangeText={set("lat")} placeholder="12.97" keyboardType="numeric" /></View>
+              <View style={{ flex: 1 }}><Field label="Longitude" value={f.lng} onChangeText={set("lng")} placeholder="77.59" keyboardType="numeric" /></View>
+            </View>
+            <TouchableOpacity onPress={openMap} style={styles.mapBtn} testID="view-on-map">
+              <Ionicons name="map" size={16} color={colors.primary} /><Text style={styles.mapTxt}>View on map</Text>
+            </TouchableOpacity>
+          </Section>
+
+          <Section title="Pickup Instructions" icon="bag-handle">
+            <Field label="Instructions for riders" value={f.pickup_instructions} onChangeText={set("pickup_instructions")} placeholder="e.g. Collect from counter 2, ring bell" multiline />
+          </Section>
+
+          <Section title="Smart Link" icon="link">
+            <Field label="Shareable link" value={f.smart_link} onChangeText={set("smart_link")} placeholder="https://..." />
+          </Section>
+
+          {/* Read-only meta */}
+          <View style={styles.metaCard}>
+            <View style={styles.metaRow}><Text style={styles.metaLbl}>Restaurant ID</Text><Text style={styles.metaVal} numberOfLines={1}>{rest?.id}</Text></View>
+            <View style={styles.metaRow}><Text style={styles.metaLbl}>Active since</Text><Text style={styles.metaVal}>{rest?.created_at ? new Date(rest.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}</Text></View>
+            <View style={styles.metaRow}><Text style={styles.metaLbl}>Status</Text><Text style={[styles.metaVal, { color: colors.success }]}>{(rest?.status || "").toUpperCase()}</Text></View>
+          </View>
+        </View>
+      </ScrollView>
+      <View style={styles.saveBar}><Button title="Save Changes" icon="checkmark" onPress={save} loading={saving} full /></View>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  heroWrap: { position: "relative" },
+  hero: { width: "100%", height: 170 },
+  heroEmpty: { backgroundColor: colors.surfaceAlt, alignItems: "center", justifyContent: "center" },
+  camBadge: { position: "absolute", right: spacing.lg, bottom: spacing.sm, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill },
+  camTxt: { color: colors.onPrimary, fontSize: 12, fontWeight: font.black },
+  section: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.md, ...shadow.card },
+  secHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: spacing.md },
+  secTitle: { fontSize: 14, fontWeight: font.black, color: colors.textPrimary },
+  label: { fontSize: 12, fontWeight: font.semi, color: colors.textSecondary, marginBottom: 6 },
+  input: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, height: 46, fontSize: 14, color: colors.textPrimary },
+  mapBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginTop: 2 },
+  mapTxt: { fontSize: 13, fontWeight: font.bold, color: colors.primary },
+  metaCard: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
+  metaRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, gap: 12 },
+  metaLbl: { fontSize: 13, color: colors.textSecondary },
+  metaVal: { fontSize: 13, color: colors.textPrimary, fontWeight: font.semi, flexShrink: 1, textAlign: "right" },
+  saveBar: { position: "absolute", left: 0, right: 0, bottom: 0, padding: spacing.lg, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+  toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
+  toggleTitle: { fontSize: 14, fontWeight: font.bold, color: colors.textPrimary },
+  toggleSub: { fontSize: 12, color: colors.textSecondary, marginTop: 4, lineHeight: 16 },
+  // Account ID + admin-managed KAP/Manager read-only cards
+  acctCard: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    padding: spacing.md, borderRadius: radius.md,
+    backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primary + "44",
+    marginBottom: spacing.md,
+  },
+  acctLbl: { fontSize: 10, fontWeight: font.black, color: colors.textMuted, letterSpacing: 0.6, textTransform: "uppercase" },
+  acctValue: { fontSize: 16, fontWeight: font.black, color: colors.primary, marginTop: 2, letterSpacing: 1, fontVariant: ["tabular-nums"] } as any,
+  acctHint: { fontSize: 10, color: colors.textMuted, maxWidth: 120, textAlign: "right" },
+  roHint: { fontSize: 11, color: colors.textMuted, marginBottom: spacing.sm, lineHeight: 15 },
+  contactCard: {
+    flexDirection: "row", gap: 12, padding: spacing.md,
+    borderRadius: radius.md, backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm,
+  },
+  contactBadge: {
+    width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary,
+    alignItems: "center", justifyContent: "center", marginTop: 2,
+  },
+  contactRole: { fontSize: 10, fontWeight: font.black, color: colors.textMuted, letterSpacing: 0.6, textTransform: "uppercase" },
+  contactName: { fontSize: 14, fontWeight: font.bold, color: colors.textPrimary, marginTop: 2 },
+  contactLine: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  contactNotes: { fontSize: 11, color: colors.textMuted, fontStyle: "italic", marginTop: 4, lineHeight: 15 },
+});

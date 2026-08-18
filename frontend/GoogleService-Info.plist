@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>1001740445335-geods6jkcntubjc4h7na341rbtc56j54.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.1001740445335-geods6jkcntubjc4h7na341rbtc56j54</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>1001740445335-rb6t7q9nfgg45ufv645m8ecl26fthm5n.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyD8C5KBbifutJRCAB6I0FwfRnvn1YVR4iE</string>
+	<key>GCM_SENDER_ID</key>
+	<string>1001740445335</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.bisnoi.app</string>
+	<key>PROJECT_ID</key>
+	<string>foodrush-98d2f</string>
+	<key>STORAGE_BUCKET</key>
+	<string>foodrush-98d2f.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:1001740445335:ios:4281242655601c526debd2</string>
+</dict>
+</plist>

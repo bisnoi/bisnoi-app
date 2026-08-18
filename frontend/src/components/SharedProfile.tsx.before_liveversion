@@ -1,0 +1,109 @@
+import React, { useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@/src/auth";
+import { colors, spacing, radius, font, shadow } from "@/src/theme";
+import { Button } from "@/src/components/ui";
+import { ConfirmModal } from "@/src/components/ConfirmModal";
+
+type Item = { icon: keyof typeof Ionicons.glyphMap; label: string; sub?: string; onPress?: () => void };
+
+export function SharedProfile({ title, items, accent = colors.primary, onBack, extra }: { title: string; items?: Item[]; accent?: string; onBack?: () => void; extra?: React.ReactNode }) {
+  const router = useRouter();
+  const { user, signOut } = useAuth();
+  const [confirmOut, setConfirmOut] = useState(false);
+
+  const logout = () => setConfirmOut(true);
+  const doSignOut = async () => {
+    setConfirmOut(false);
+    await signOut();
+    router.replace("/login" as any);
+  };
+
+  const defaultItems: Item[] = items || [
+    { icon: "help-circle", label: "Help & Support", sub: "FAQs and customer care" },
+    { icon: "document-text", label: "Terms & Privacy" },
+  ];
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        <View style={styles.titleBar}>
+          {onBack ? (
+            <TouchableOpacity testID="profile-back" onPress={onBack} style={styles.backBtn} hitSlop={10} activeOpacity={0.8}>
+              <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+          ) : null}
+          <Text style={styles.title}>{title}</Text>
+        </View>
+        <View style={styles.hero}>
+          <View style={[styles.avatar, { backgroundColor: accent }]}>
+            <Text style={{ color: "#fff", fontWeight: font.black, fontSize: 28 }}>
+              {(user?.name || "U")[0].toUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name}>{user?.name || "User"}</Text>
+            <Text style={styles.phone}>+91 {user?.phone}</Text>
+            <View style={styles.roleBadge}>
+              <Ionicons name="checkmark-circle" size={12} color={colors.success} />
+              <Text style={{ color: colors.success, fontSize: 11, fontWeight: font.bold, textTransform: "uppercase" }}>
+                {(user?.role || "").replace("_", " ")}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={{ padding: spacing.lg, gap: spacing.sm }}>
+          {extra}
+          {defaultItems.map((m) => (
+            <TouchableOpacity key={m.label} style={styles.row} activeOpacity={0.8} onPress={m.onPress}>
+              <View style={[styles.icBox, { backgroundColor: accent + "22" }]}>
+                <Ionicons name={m.icon} size={20} color={accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rLabel}>{m.label}</Text>
+                {m.sub && <Text style={styles.rSub}>{m.sub}</Text>}
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.lg }}>
+          <Button title="Sign Out" icon="log-out" variant="secondary" onPress={logout} full />
+        </View>
+
+        <Text style={styles.version}>Bisnoi v1.0 • Demo Build</Text>
+      </ScrollView>
+      <ConfirmModal
+        visible={confirmOut}
+        title="Sign out?"
+        message="You'll need to login again to access your account."
+        confirmLabel="Sign out"
+        destructive
+        onConfirm={doSignOut}
+        onCancel={() => setConfirmOut(false)}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  titleBar: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm, backgroundColor: colors.background },
+  backBtn: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 22, fontWeight: font.black, color: colors.textPrimary },
+  hero: { flexDirection: "row", alignItems: "center", gap: 16, padding: spacing.lg, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  avatar: { width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center" },
+  name: { fontSize: 20, fontWeight: font.black, color: colors.textPrimary },
+  phone: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
+  roleBadge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.successSoft, marginTop: 6 },
+  row: { flexDirection: "row", alignItems: "center", gap: 14, padding: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, ...shadow.card },
+  icBox: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  rLabel: { fontSize: 14, fontWeight: font.bold, color: colors.textPrimary },
+  rSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  version: { textAlign: "center", color: colors.textMuted, fontSize: 11, marginTop: spacing.xl },
+});

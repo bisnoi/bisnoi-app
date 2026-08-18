@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo *)",
+      "Bash(gcloud auth *)",
+      "Bash(gcloud config *)",
+      "Bash(gcloud run *)",
+      "Bash(gcloud logging *)",
+      "Bash(awk 'NR==1{print \"PEHLI baar: \"$0} END{print \"AAKHRI baar: \"$0; print \"Total failures \\(30d\\): \"NR}')",
+      "Bash(npx tsc *)",
+      "Bash(curl -s 'https://maps.googleapis.com/maps/api/geocode/json?latlng=12.9716,77.5946&key=AIzaSyAnhIwEtUdoxNKXQzepzMiImy8qxQKkkkM')",
+      "Bash(curl -s 'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=indira+nagar&key=AIzaSyAnhIwEtUdoxNKXQzepzMiImy8qxQKkkkM')",
+      "Bash(gcloud services *)",
+      "Bash(curl -s \"https://maps.googleapis.com/maps/api/geocode/json?latlng=12.9716,77.5946&key=AIzaSyBRBtjn7qASQjGB0pPCYePhs7DBHsYgmkU\")",
+      "Bash(dig +short bisnoi.com A)",
+      "Bash(dig +short www.bisnoi.com CNAME)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}  server=%{scheme}\\\\n\" https://bisnoi.com)",
+      "Bash(curl -sI https://bisnoi.com)",
+      "Bash(curl -s https://bisnoi.com)",
+      "Bash(curl -s https://bisnoi-web-drfg4s2tya-el.a.run.app)",
+      "Bash(gcloud firebase *)",
+      "Bash(firebase --version)",
+      "Bash(curl -s -H 'Authorization: Bearer __CMDSUB_OUTPUT__' https://firebasehosting.googleapis.com/v1beta1/projects/bisnoi-app-f8943/sites)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); r=d.get\\('releases',[{}]\\)[0]; print\\(json.dumps\\({'time':r.get\\('releaseTime'\\),'type':r.get\\('type'\\),'config':r.get\\('version',{}\\).get\\('config'\\)},indent=1\\)\\)\")",
+      "Bash(curl -s -o /dev/null -w \"bisnoi.com          HTTP %{http_code}  \\(%{time_total}s\\)\\\\n\" https://bisnoi.com)",
+      "Bash(curl -s -o /dev/null -w \"bisnoi.com/api/categories  HTTP %{http_code}\\\\n\" https://bisnoi.com/api/categories)",
+      "Bash(curl -s \"https://bisnoi.com/_expo/static/js/web/entry-b6377f68b85f82ee2a59b6e81959aa75.js\")",
+      "Bash(sed 's/^/purani keys mile: /')",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('app.json'\\)\\); console.log\\('OK'\\)\")",
+      "Bash(npx --yes eas-cli@latest whoami)",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST https://bisnoi.com/api/auth/send-otp -H 'Content-Type: application/json' -d '{\"phone\":\"8929921929\"}')",
+      "Bash(gcloud builds *)",
+      "Bash(curl -s -o /dev/null -w \"bisnoi.com HTTP %{http_code}\\\\n\" https://bisnoi.com)",
+      "Bash(npx --yes yarn@1.22.22 add expo-document-picker@~14.0.8 expo-file-system@~19.0.23)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"for\\(const k of ['expo-document-picker','expo-file-system']\\){try{console.log\\(k.padEnd\\(22\\), require\\(k+'/package.json'\\).version\\)}catch\\(e\\){console.log\\(k.padEnd\\(22\\),'MISSING'\\)}}\")",
+      "Bash(curl -s \"https://api.github.com/repos/bisnoi/bisnoi\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('visibility:', d.get\\('visibility', d.get\\('message','?'\\)\\)\\)\")"
+    ]
+  }
+}

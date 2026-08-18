@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.bisnoi.app",
+      "sha256_cert_fingerprints": [
+        "26:87:AC:E2:57:D1:24:2F:87:C4:6E:11:C6:0C:1C:79:4C:BC:FB:2C:74:A5:FA:06:50:6A:D6:B4:8F:C2:91:44"
+      ]
+    }
+  }
+]

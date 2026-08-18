@@ -1,0 +1,385 @@
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  View, Text, StyleSheet, ScrollView, ActivityIndicator,
+  TouchableOpacity, TextInput, Modal, Switch, Image,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { Api } from "@/src/api";
+import { colors, spacing, radius, font } from "@/src/theme";
+import { Button, Empty, VegDot } from "@/src/components/ui";
+
+type Item = {
+  id: string; name: string; description?: string; price: number; image?: string;
+  category?: string; category_id?: string | null; veg: boolean;
+  is_available?: boolean; available?: boolean;
+  approval_status?: string; reject_reason?: string | null;
+};
+type Category = { id: string; name: string };
+
+const STATUS_STYLE: Record<string, { bg: string; fg: string; label: string }> = {
+  pending: { bg: colors.warningSoft, fg: colors.warning, label: "PENDING REVIEW" },
+  rejected: { bg: colors.errorSoft, fg: colors.error, label: "REJECTED" },
+  approved: { bg: colors.successSoft, fg: colors.success, label: "APPROVED" },
+};
+
+export function MenuReviewModal({
+  visible, restaurant, onClose, onChanged,
+}: { visible: boolean; restaurant: { id: string; name: string } | null; onClose: () => void; onChanged?: () => void }) {
+  const [items, setItems] = useState<Item[]>([]);
+  const [cats, setCats] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Item | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  // bulk selection
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkRejecting, setBulkRejecting] = useState(false);
+  const [bulkRejectReason, setBulkRejectReason] = useState("");
+
+  // edit form
+  const [eName, setEName] = useState("");
+  const [eDesc, setEDesc] = useState("");
+  const [ePrice, setEPrice] = useState("");
+  const [eCat, setECat] = useState<string | null>(null);
+  const [eVeg, setEVeg] = useState(true);
+  const [eAvail, setEAvail] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!restaurant) return;
+    setLoading(true);
+    try {
+      const [i, c] = await Promise.all([
+        Api.adminMenu(restaurant.id) as Promise<Item[]>,
+        Api.adminCategories(restaurant.id).catch(() => []) as Promise<Category[]>,
+      ]);
+      const order = { pending: 0, rejected: 1, approved: 2 } as Record<string, number>;
+      i.sort((a, b) => (order[a.approval_status || "approved"] ?? 2) - (order[b.approval_status || "approved"] ?? 2));
+      setItems(i);
+      setCats(c || []);
+    } finally {
+      setLoading(false);
+    }
+  }, [restaurant]);
+
+  useEffect(() => {
+    if (visible) {
+      setEditing(null); setRejectingId(null); setRejectReason("");
+      setSelectMode(false); setSelected(new Set()); setBulkRejecting(false); setBulkRejectReason("");
+      load();
+    }
+  }, [visible, load]);
+
+  const openEdit = (it: Item) => {
+    setRejectingId(null);
+    setEditing(it);
+    setEName(it.name); setEDesc(it.description || ""); setEPrice(String(it.price));
+    setECat(it.category_id || null); setEVeg(it.veg); setEAvail(it.is_available ?? it.available ?? true);
+  };
+
+  const approve = async (it: Item) => {
+    setBusy(it.id);
+    try { await Api.adminApproveItem(it.id); await load(); onChanged?.(); } finally { setBusy(null); }
+  };
+  const confirmReject = async (it: Item) => {
+    setBusy(it.id);
+    try { await Api.adminRejectItem(it.id, rejectReason.trim()); setRejectingId(null); setRejectReason(""); await load(); onChanged?.(); } finally { setBusy(null); }
+  };
+  const saveEdit = async () => {
+    if (!editing) return;
+    setBusy(editing.id);
+    try {
+      await Api.adminUpdateItem(editing.id, {
+        name: eName.trim(), description: eDesc.trim(), price: parseInt(ePrice, 10) || 0,
+        category_id: eCat, veg: eVeg, is_available: eAvail, available: eAvail,
+      });
+      setEditing(null);
+      await load(); onChanged?.();
+    } finally { setBusy(null); }
+  };
+
+  const pendingCount = items.filter((i) => (i.approval_status || "approved") === "pending").length;
+  const pendingIds = items.filter((i) => (i.approval_status || "approved") === "pending").map((i) => i.id);
+  const allPendingSelected = pendingIds.length > 0 && pendingIds.every((id) => selected.has(id));
+
+  const toggleSelectMode = () => {
+    setSelectMode((v) => !v);
+    setSelected(new Set());
+    setEditing(null); setRejectingId(null);
+  };
+  const toggleItemSelected = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAllPending = () => {
+    setSelected(allPendingSelected ? new Set() : new Set(pendingIds));
+  };
+
+  const bulkApprove = async () => {
+    if (selected.size === 0) return;
+    setBulkBusy(true);
+    try {
+      const ids = Array.from(selected);
+      await Promise.all(ids.map((id) => Api.adminApproveItem(id)));
+      setSelected(new Set());
+      await load(); onChanged?.();
+    } finally { setBulkBusy(false); }
+  };
+  const openBulkReject = () => {
+    if (selected.size === 0) return;
+    setBulkRejecting(true);
+    setBulkRejectReason("");
+  };
+  const confirmBulkReject = async () => {
+    setBulkBusy(true);
+    try {
+      const ids = Array.from(selected);
+      await Promise.all(ids.map((id) => Api.adminRejectItem(id, bulkRejectReason.trim())));
+      setSelected(new Set());
+      setBulkRejecting(false); setBulkRejectReason("");
+      await load(); onChanged?.();
+    } finally { setBulkBusy(false); }
+  };
+
+  return (
+    <Modal animationType="slide" presentationStyle="pageSheet" visible={visible} onRequestClose={onClose}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top"]}>
+        <View style={styles.head}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title} numberOfLines={1}>Menu Review</Text>
+            <Text style={styles.sub} numberOfLines={1}>{restaurant?.name} • {pendingCount} pending</Text>
+          </View>
+          {pendingCount > 0 && (
+            <TouchableOpacity testID="menu-review-select-toggle" onPress={toggleSelectMode} style={styles.selectToggleBtn}>
+              <Ionicons name={selectMode ? "close" : "checkbox-outline"} size={16} color={colors.primary} />
+              <Text style={styles.selectToggleTxt}>{selectMode ? "Cancel" : "Select"}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity testID="menu-review-close" onPress={onClose}><Ionicons name="close" size={26} color={colors.textPrimary} /></TouchableOpacity>
+        </View>
+
+        {selectMode && (
+          <View style={styles.selectAllRow}>
+            <TouchableOpacity testID="menu-review-select-all" onPress={toggleSelectAllPending} style={styles.selectAllInner}>
+              <Ionicons name={allPendingSelected ? "checkbox" : "square-outline"} size={20} color={colors.primary} />
+              <Text style={styles.selectAllTxt}>
+                {allPendingSelected ? "Deselect all pending" : `Select all pending (${pendingIds.length})`}
+              </Text>
+            </TouchableOpacity>
+            {selected.size > 0 ? <Text style={styles.selectedCountTxt}>{selected.size} selected</Text> : null}
+          </View>
+        )}
+
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: selectMode && selected.size > 0 ? 110 : 40 }}>
+          {loading ? (
+            <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+          ) : items.length === 0 ? (
+            <Empty icon="fast-food" title="No menu items" subtitle="This restaurant has no items yet" />
+          ) : (
+            items.map((it) => {
+              const status = it.approval_status || "approved";
+              const ss = STATUS_STYLE[status] || STATUS_STYLE.approved;
+              const isEditing = editing?.id === it.id;
+              const isRejecting = rejectingId === it.id;
+              const isChecked = selected.has(it.id);
+              return (
+                <View key={it.id} style={[styles.card, selectMode && isChecked && styles.cardSelected]} testID={`review-item-${it.id}`}>
+                  <View style={{ flexDirection: "row", gap: 12 }}>
+                    {selectMode && (
+                      <TouchableOpacity
+                        testID={`review-select-${it.id}`}
+                        onPress={() => toggleItemSelected(it.id)}
+                        style={styles.checkboxTouch}
+                        hitSlop={8}
+                      >
+                        <Ionicons name={isChecked ? "checkbox" : "square-outline"} size={22} color={isChecked ? colors.primary : colors.textMuted} />
+                      </TouchableOpacity>
+                    )}
+                    {it.image ? (
+                      <Image source={{ uri: it.image }} style={styles.thumb} />
+                    ) : (
+                      <View style={[styles.thumb, styles.thumbEmpty]} testID={`review-item-noimg-${it.id}`}>
+                        <Ionicons name="fast-food-outline" size={24} color={colors.textMuted} />
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <VegDot veg={it.veg} />
+                        <Text style={styles.name} numberOfLines={1}>{it.name}</Text>
+                      </View>
+                      <Text style={styles.price}>₹{it.price}</Text>
+                      <View style={[styles.statusTag, { backgroundColor: ss.bg, marginTop: 6 }]}>
+                        <Text style={{ color: ss.fg, fontSize: 10, fontWeight: font.black, letterSpacing: 0.3 }}>{ss.label}</Text>
+                      </View>
+                      {status === "rejected" && it.reject_reason ? (
+                        <Text style={styles.rejReason}>Reason: {it.reject_reason}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {selectMode ? null : isEditing ? (
+                    <View style={styles.editBox}>
+                      <Text style={styles.label}>Name</Text>
+                      <TextInput testID="review-edit-name" value={eName} onChangeText={setEName} style={styles.input} placeholderTextColor={colors.textMuted} />
+                      <Text style={styles.label}>Description</Text>
+                      <TextInput testID="review-edit-desc" value={eDesc} onChangeText={setEDesc} style={[styles.input, { minHeight: 56, textAlignVertical: "top" }]} multiline placeholderTextColor={colors.textMuted} />
+                      <Text style={styles.label}>Price (₹)</Text>
+                      <TextInput testID="review-edit-price" value={ePrice} onChangeText={(t) => setEPrice(t.replace(/[^0-9]/g, ""))} keyboardType="number-pad" style={styles.input} placeholderTextColor={colors.textMuted} />
+                      {cats.length > 0 ? (
+                        <>
+                          <Text style={styles.label}>Category</Text>
+                          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                            {cats.map((c) => {
+                              const on = eCat === c.id;
+                              return (
+                                <TouchableOpacity key={c.id} onPress={() => setECat(c.id)} style={[styles.catPill, on && styles.catPillOn]}>
+                                  <Text style={[styles.catPillText, on && { color: "#fff" }]}>{c.name}</Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </>
+                      ) : null}
+                      <View style={styles.rowBetween}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><VegDot veg={eVeg} /><Text style={styles.toggleLabel}>Vegetarian</Text></View>
+                        <Switch value={eVeg} onValueChange={setEVeg} trackColor={{ true: colors.vegGreen, false: colors.borderStrong }} />
+                      </View>
+                      <View style={styles.rowBetween}>
+                        <Text style={styles.toggleLabel}>Available</Text>
+                        <Switch value={eAvail} onValueChange={setEAvail} trackColor={{ true: colors.success, false: colors.borderStrong }} />
+                      </View>
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                        <View style={{ flex: 1 }}><Button title="Cancel" variant="ghost" onPress={() => setEditing(null)} full /></View>
+                        <View style={{ flex: 1 }}><Button testID={`review-save-${it.id}`} title="Save" icon="checkmark" onPress={saveEdit} loading={busy === it.id} full /></View>
+                      </View>
+                    </View>
+                  ) : isRejecting ? (
+                    <View style={styles.editBox}>
+                      <Text style={styles.label}>Rejection reason (optional)</Text>
+                      <TextInput
+                        testID={`review-reject-reason-${it.id}`}
+                        value={rejectReason}
+                        onChangeText={setRejectReason}
+                        placeholder="e.g. Image unclear, price too high"
+                        placeholderTextColor={colors.textMuted}
+                        style={[styles.input, { minHeight: 56, textAlignVertical: "top" }]}
+                        multiline
+                      />
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                        <View style={{ flex: 1 }}><Button title="Cancel" variant="ghost" onPress={() => { setRejectingId(null); setRejectReason(""); }} full /></View>
+                        <View style={{ flex: 1 }}><Button testID={`review-confirm-reject-${it.id}`} title="Reject" icon="close" variant="danger" onPress={() => confirmReject(it)} loading={busy === it.id} full /></View>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.actions}>
+                      {status !== "approved" && (
+                        <TouchableOpacity testID={`review-approve-${it.id}`} disabled={busy === it.id} onPress={() => approve(it)} style={[styles.actBtn, { borderColor: colors.success }]}>
+                          <Ionicons name="checkmark-circle" size={15} color={colors.success} />
+                          <Text style={[styles.actText, { color: colors.success }]}>Approve</Text>
+                        </TouchableOpacity>
+                      )}
+                      {status !== "rejected" && (
+                        <TouchableOpacity testID={`review-reject-${it.id}`} disabled={busy === it.id} onPress={() => { setEditing(null); setRejectingId(it.id); setRejectReason(""); }} style={[styles.actBtn, { borderColor: colors.error }]}>
+                          <Ionicons name="close-circle" size={15} color={colors.error} />
+                          <Text style={[styles.actText, { color: colors.error }]}>Reject</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity testID={`review-edit-${it.id}`} disabled={busy === it.id} onPress={() => openEdit(it)} style={[styles.actBtn, { borderColor: colors.primary }]}>
+                        <Ionicons name="create" size={15} color={colors.primary} />
+                        <Text style={[styles.actText, { color: colors.primary }]}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+
+        {selectMode && selected.size > 0 && !bulkRejecting && (
+          <View style={styles.bulkBar}>
+            <Text style={styles.bulkBarCount}>{selected.size} selected</Text>
+            <View style={{ flexDirection: "row", gap: 8, flex: 1 }}>
+              <TouchableOpacity testID="menu-review-bulk-approve" disabled={bulkBusy} onPress={bulkApprove} style={[styles.bulkBtn, { backgroundColor: colors.success }]}>
+                {bulkBusy ? <ActivityIndicator color="#fff" size="small" /> : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                    <Text style={styles.bulkBtnTxt}>Approve</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity testID="menu-review-bulk-reject" disabled={bulkBusy} onPress={openBulkReject} style={[styles.bulkBtn, { backgroundColor: colors.error }]}>
+                <Ionicons name="close-circle" size={16} color="#fff" />
+                <Text style={styles.bulkBtnTxt}>Reject</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {bulkRejecting && (
+          <View style={styles.bulkRejectBar}>
+            <Text style={styles.label}>Rejection reason for {selected.size} item(s) (optional)</Text>
+            <TextInput
+              testID="menu-review-bulk-reject-reason"
+              value={bulkRejectReason}
+              onChangeText={setBulkRejectReason}
+              placeholder="e.g. Image unclear, price too high"
+              placeholderTextColor={colors.textMuted}
+              style={[styles.input, { minHeight: 48 }]}
+            />
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+              <View style={{ flex: 1 }}><Button title="Cancel" variant="ghost" onPress={() => { setBulkRejecting(false); setBulkRejectReason(""); }} full /></View>
+              <View style={{ flex: 1 }}>
+                <Button testID="menu-review-bulk-reject-confirm" title="Reject Selected" icon="close" variant="danger" onPress={confirmBulkReject} loading={bulkBusy} full />
+              </View>
+            </View>
+          </View>
+        )}
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  head: { flexDirection: "row", alignItems: "center", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
+  title: { fontSize: 20, fontWeight: font.black, color: colors.textPrimary },
+  sub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  selectToggleBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  selectToggleTxt: { color: colors.primary, fontSize: 12, fontWeight: font.bold },
+  selectAllRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surfaceAlt },
+  selectAllInner: { flexDirection: "row", alignItems: "center", gap: 8 },
+  selectAllTxt: { fontSize: 13, fontWeight: font.semi, color: colors.textPrimary },
+  selectedCountTxt: { fontSize: 12, fontWeight: font.bold, color: colors.primary },
+  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
+  cardSelected: { borderColor: colors.primary, borderWidth: 1.5, backgroundColor: colors.primarySoft },
+  checkboxTouch: { justifyContent: "center", alignItems: "center", paddingRight: 2 },
+  thumb: { width: 70, height: 70, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+  thumbEmpty: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
+  name: { fontSize: 15, fontWeight: font.bold, color: colors.textPrimary, flexShrink: 1 },
+  price: { fontSize: 14, fontWeight: font.bold, color: colors.textPrimary, marginTop: 3 },
+  statusTag: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.sm },
+  rejReason: { fontSize: 11, color: colors.error, marginTop: 5, fontStyle: "italic" },
+  actions: { flexDirection: "row", gap: 8, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
+  actBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 9, borderRadius: radius.md, borderWidth: 1.5 },
+  actText: { fontSize: 13, fontWeight: font.bold },
+  editBox: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, gap: 6 },
+  label: { fontSize: 11, fontWeight: font.bold, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 4 },
+  input: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, fontSize: 14, color: colors.textPrimary },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
+  toggleLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: font.semi },
+  catPill: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill },
+  catPillOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  catPillText: { fontSize: 12, fontWeight: font.semi, color: colors.textSecondary },
+  bulkBar: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: spacing.lg, paddingVertical: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+  bulkBarCount: { fontSize: 13, fontWeight: font.bold, color: colors.textPrimary },
+  bulkBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: radius.md },
+  bulkBtnTxt: { color: "#fff", fontSize: 14, fontWeight: font.bold },
+  bulkRejectBar: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg, paddingVertical: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+});

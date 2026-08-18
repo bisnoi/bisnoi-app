@@ -1,0 +1,53 @@
+import React from "react";
+import { Stack } from "expo-router";
+import { colors } from "@/src/theme";
+import { useRoleGuard } from "@/src/utils/roleGuard";
+
+export default function AdminLayout() {
+  const roleOk = useRoleGuard(["admin", "admin_staff"]);
+  if (!roleOk) return null;
+  return (
+    <>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+        animation: "slide_from_right",
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="users" />
+      <Stack.Screen name="riders" />
+      <Stack.Screen name="live-riders" />
+      <Stack.Screen name="activity-logs" />
+      <Stack.Screen name="restaurants" />
+      <Stack.Screen name="applications" />
+      <Stack.Screen name="orders" />
+      <Stack.Screen name="menu" />
+      <Stack.Screen name="reviews" />
+      <Stack.Screen name="pos" />
+      <Stack.Screen name="offers" />
+      <Stack.Screen name="complaints" />
+      <Stack.Screen name="finance" />
+      <Stack.Screen name="reports" />
+      <Stack.Screen name="ads" />
+      <Stack.Screen name="appearance" />
+      <Stack.Screen name="custom-css" />
+      <Stack.Screen name="checkout-settings" />
+      <Stack.Screen name="charges" />
+      <Stack.Screen name="whatsapp" />
+      <Stack.Screen name="support" />
+      <Stack.Screen name="commission" />
+      <Stack.Screen name="notifications" />
+      <Stack.Screen name="price-policy" />
+      <Stack.Screen name="staff" />
+      <Stack.Screen name="legal-content" />
+      <Stack.Screen name="cancellation-rules" />
+      <Stack.Screen name="cod-rules" />
+      <Stack.Screen name="customer-payments" />
+      <Stack.Screen name="restaurant-performance" />
+      <Stack.Screen name="profile" />
+    </Stack>
+    </>
+  );
+}

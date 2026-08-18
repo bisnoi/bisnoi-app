@@ -1,0 +1,533 @@
+import { storage } from "@/src/utils/storage";
+
+const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+
+/** Resolve relative media URLs (e.g. /api/media/xyz.mp4) to absolute backend URLs. */
+export function mediaUrl(u?: string | null): string {
+  if (!u) return "";
+  return /^(https?:|data:|blob:)/.test(u) ? u : `${BASE}${u.startsWith("/") ? "" : "/"}${u}`;
+}
+
+export async function api<T = any>(
+  path: string,
+  opts: { method?: string; body?: any; auth?: boolean; headers?: Record<string, string> } = {},
+): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  if (opts.auth !== false) {
+    const token = await storage.getItem<string>("auth_token", "");
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${BASE}/api${path}`, {
+    method: opts.method || "GET",
+    headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const text = await res.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) {
+    const msg = (data && (data.detail || data.message)) || `Request failed (${res.status})`;
+    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+  }
+  return data as T;
+}
+
+export const Api = {
+  sendOtp: (phone: string) => api("/auth/send-otp", { method: "POST", body: { phone }, auth: false }),
+  verifyOtp: (phone: string, code: string, role?: string, name?: string) =>
+    api("/auth/verify-otp", { method: "POST", body: { phone, code, role, name }, auth: false }),
+  me: () => api("/auth/me"),
+  deleteAccount: () => api("/auth/me", { method: "DELETE" }),
+  updateProfile: (body: {
+    name?: string;
+    email?: string | null;
+    dob?: string | null;
+    gender?: string | null;
+    avatar?: string | null;
+  }) => api("/auth/me", { method: "PATCH", body }),
+  // App theme (admin-configurable accent color)
+  getTheme: () => api("/settings/theme", { auth: false }),
+  adminSetTheme: (color: string) => api("/admin/settings/theme", { method: "PATCH", body: { color } }),
+  // Custom CSS (admin-authored hotfix styles, applied app-wide on web)
+  getCustomCss: () => api("/settings/custom-css", { auth: false }),
+  adminSetCustomCss: (css: string) => api("/admin/settings/custom-css", { method: "PUT", body: { css } }),
+  categories: () => api("/categories", { auth: false }),
+  restaurants: (params: Record<string, any> = {}) => {
+    const q = new URLSearchParams(params as any).toString();
+    return api(`/restaurants${q ? `?${q}` : ""}`, { auth: false });
+  },
+  restaurant: (id: string) => api(`/restaurants/${id}`, { auth: false }),
+  coupons: () => api("/coupons", { auth: false }),
+  createOrder: (body: any) => api("/orders", { method: "POST", body }),
+  // PayU: initiate hosted checkout for a placed order -> returns { action, fields }
+  payuInitiate: (order_id: string) => api("/payu/initiate", { method: "POST", body: { order_id } }),
+  payuStatus: (order_id: string) => api(`/payu/status/${order_id}`),
+  myOrders: () => api("/orders/mine"),
+  // Unified owner feed: ONLINE (app) + OFFLINE (POS dine-in/takeaway/walk-in) orders
+  ownerRecentOrders: (limit = 200) => api(`/owner/recent-orders?limit=${limit}`),
+  // App-wide order charges (admin-configurable: delivery, packing, GST)
+  getCharges: () => api("/settings/charges", { auth: false }),
+  adminUpdateCharges: (body: { delivery_charge?: number; free_delivery_above?: number; packing_charge?: number; gst_percent?: number }) =>
+    api("/admin/settings/charges", { method: "PATCH", body }),
+  order: (id: string) => api(`/orders/${id}`),
+  updateOrderStatus: (id: string, status: string) => api(`/orders/${id}/status`, { method: "PATCH", body: { status } }),
+  assignRider: (id: string) => api(`/orders/${id}/assign-rider`, { method: "POST" }),
+  // Owner verifies the 4-digit handover code the rider recites in person.
+  // On success the order is moved to `picked` and both rider + customer are notified.
+  verifyHandover: (id: string, code: string) =>
+    api(`/orders/${id}/verify-handover`, { method: "POST", body: { code } }),
+  // Emergency: rider hits an issue (breakdown, accident, …) after pickup and
+  // releases the order back to the available-feed so another rider can take over.
+  requestRiderTransfer: (id: string, reason: string, note?: string) =>
+    api(`/orders/${id}/request-transfer`, { method: "POST", body: { reason, note } }),
+  riderLocation: (id: string, lat: number, lng: number) => api(`/orders/${id}/rider-location`, { method: "PATCH", body: { lat, lng } }),
+  availableForRider: () => api("/orders/available/feed"),
+  setRiderOnline: (is_online: boolean) => api("/rider/online-status", { method: "PATCH", body: { is_online } }),
+  riderHeartbeat: (lat: number, lng: number) =>
+    api("/rider/heartbeat", { method: "POST", body: { lat, lng } }),
+  redispatchOrder: (oid: string) =>
+    api(`/orders/${oid}/redispatch`, { method: "POST" }),
+
+  // ---- Admin: manage riders ----
+  adminRiders: (params?: { q?: string; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set("q", params.q);
+    if (params?.status && params.status !== "all") qs.set("status", params.status);
+    const s = qs.toString();
+    return api(`/admin/riders${s ? `?${s}` : ""}`);
+  },
+  adminRiderDetail: (rid: string) => api(`/admin/riders/${rid}`),
+  adminRiderAction: (rid: string, body: { verified?: boolean; blocked?: boolean; force_offline?: boolean; note?: string }) =>
+    api(`/admin/riders/${rid}`, { method: "PATCH", body }),
+  adminRiderProfileEdit: (rid: string, body: Record<string, any>) =>
+    api(`/admin/riders/${rid}/profile`, { method: "PUT", body }),
+
+  // ---- Admin: activity logs ----
+  adminLogs: (params?: { role?: string; method?: string; q?: string; since_hours?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.role && params.role !== "all") qs.set("role", params.role);
+    if (params?.method && params.method !== "all") qs.set("method", params.method);
+    if (params?.q) qs.set("q", params.q);
+    if (params?.since_hours) qs.set("since_hours", String(params.since_hours));
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const s = qs.toString();
+    return api(`/admin/logs${s ? `?${s}` : ""}`);
+  },
+  simulateStep: (id: string) => api(`/orders/${id}/simulate-rider-step`, { method: "POST", auth: false }),
+  simulateProgress: (id: string) => api(`/orders/${id}/simulate-progress`, { method: "POST", auth: false }),
+  addReview: (body: any) => api("/reviews", { method: "POST", body }),
+  myOrderReview: (oid: string) => api(`/orders/${oid}/review`),
+  // Profile details + reviews (per role)
+  myDetails: () => api("/me/details"),
+  adminReviews: () => api("/admin/reviews"),
+  ownerReviews: () => api("/owner/reviews"),
+  riderReviews: () => api("/rider/reviews"),
+  // POS / Billing
+  ownerCreatePos: (body: any) => api("/owner/pos/orders", { method: "POST", body }),
+  ownerListPos: () => api("/owner/pos/orders"),
+  ownerGetPos: (id: string) => api(`/owner/pos/orders/${id}`),
+  ownerPosStats: () => api("/owner/pos/stats"),
+  adminPosOrders: (rid?: string) => api(`/admin/pos/orders${rid ? `?restaurant_id=${rid}` : ""}`),
+  adminPosStats: () => api("/admin/pos/stats"),
+  // Offers (admin catalog; owner applies)
+  adminOffers: () => api("/admin/offers"),
+  adminCreateOffer: (body: any) => api("/admin/offers", { method: "POST", body }),
+  adminUpdateOffer: (oid: string, body: any) => api(`/admin/offers/${oid}`, { method: "PATCH", body }),
+  adminDeleteOffer: (oid: string) => api(`/admin/offers/${oid}`, { method: "DELETE" }),
+  ownerOffers: () => api("/owner/offers"),
+  ownerApplyOffer: (oid: string) => api(`/owner/offers/${oid}/apply`, { method: "POST" }),
+  ownerRemoveOffer: (oid: string) => api(`/owner/offers/${oid}/remove`, { method: "POST" }),
+  // Complaints
+  createComplaint: (body: any) => api("/complaints", { method: "POST", body }),
+  myComplaints: () => api("/complaints/mine"),
+  ownerComplaints: () => api("/owner/complaints"),
+  adminComplaints: () => api("/admin/complaints"),
+  riderComplaints: () => api("/rider/complaints"),
+  replyComplaint: (cid: string, message: string) => api(`/complaints/${cid}/reply`, { method: "POST", body: { message } }),
+  setComplaintStatus: (cid: string, status: string) => api(`/complaints/${cid}/status`, { method: "PATCH", body: { status } }),
+  // Finance
+  ownerFinance: () => api("/owner/finance"),
+  riderFinance: () => api("/rider/finance"),
+  adminFinance: () => api("/admin/finance"),
+  // Reports (sales/earnings — summary + breakdown, date filtered)
+  ownerReports: (params: { from?: string; to?: string } = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as any).toString();
+    return api(`/owner/reports${q ? `?${q}` : ""}`);
+  },
+  riderReports: (params: { from?: string; to?: string } = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as any).toString();
+    return api(`/rider/reports${q ? `?${q}` : ""}`);
+  },
+  adminReports: (params: { from?: string; to?: string } = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as any).toString();
+    return api(`/admin/reports${q ? `?${q}` : ""}`);
+  },
+  // Outlet
+  ownerOutlet: () => api("/owner/outlet"),
+  ownerUpdateOutlet: (body: any) => api("/owner/outlet", { method: "PATCH", body }),
+  // Owner
+  ownerRests: () => api("/owner/restaurants"),
+  ownerMyRestaurant: () => api("/owner/restaurant"),
+  ownerListItems: () => api("/owner/menu"),
+  ownerCreateItem: (body: any) => api("/owner/menu", { method: "POST", body }),
+  ownerAddItem: (rid: string, body: any) => api(`/owner/restaurants/${rid}/menu`, { method: "POST", body }),
+  ownerUpdateItem: (mid: string, body: any) => api(`/owner/menu/${mid}`, { method: "PATCH", body }),
+  ownerDeleteItem: (mid: string) => api(`/owner/menu/${mid}`, { method: "DELETE" }),
+  ownerToggleItem: (mid: string, available: boolean) => api(`/owner/menu/${mid}`, { method: "PATCH", body: { available, is_available: available } }),
+  ownerStats: () => api("/owner/stats"),
+  ownerDashboard: () => api("/owner/dashboard"),
+  // Owner availability (online/offline + weekly hours)
+  ownerSetAvailability: (body: { is_open?: boolean; operating_hours?: any[] }) =>
+    api("/owner/availability", { method: "PATCH", body }),
+  // Owner categories
+  ownerCategories: () => api("/owner/categories"),
+  ownerCreateCategory: (body: any) => api("/owner/categories", { method: "POST", body }),
+  ownerUpdateCategory: (cid: string, body: any) => api(`/owner/categories/${cid}`, { method: "PATCH", body }),
+  ownerDeleteCategory: (cid: string) => api(`/owner/categories/${cid}`, { method: "DELETE" }),
+  ownerReorderCategories: (ids: string[]) => api("/owner/categories/reorder", { method: "POST", body: { ids } }),
+  // Owner item variations
+  ownerListVariations: (mid: string) => api(`/owner/menu/${mid}/variations`),
+  ownerCreateVariation: (mid: string, body: any) => api(`/owner/menu/${mid}/variations`, { method: "POST", body }),
+  ownerUpdateVariation: (vid: string, body: any) => api(`/owner/variations/${vid}`, { method: "PATCH", body }),
+  ownerDeleteVariation: (vid: string) => api(`/owner/variations/${vid}`, { method: "DELETE" }),
+  // Owner notifications
+  ownerNotifications: () => api("/owner/notifications"),
+  ownerNotifUnread: () => api("/owner/notifications/unread-count"),
+  ownerNotifMarkRead: (nid: string) => api(`/owner/notifications/${nid}/read`, { method: "PATCH" }),
+  ownerNotifReadAll: () => api("/owner/notifications/read-all", { method: "POST" }),
+  // Generic notifications (rider/customer)
+  notifications: () => api("/notifications"),
+  notifUnread: () => api("/notifications/unread-count"),
+  notifReadAll: () => api("/notifications/read-all", { method: "POST" }),
+  notifMarkRead: (nid: string) => api(`/notifications/${nid}/read`, { method: "PATCH" }),
+  // Admin
+  adminStats: () => api("/admin/stats"),
+  adminDashboard: () => api("/admin/dashboard"),
+  adminUsers: (params: { q?: string; role?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    if (params.role) qs.set("role", params.role);
+    const s = qs.toString();
+    return api(`/admin/users${s ? `?${s}` : ""}`);
+  },
+  adminCreateUser: (body: { phone: string; name?: string; role: string }) => api("/admin/users", { method: "POST", body }),
+  adminUpdateUser: (uid: string, body: { name?: string; phone?: string; role?: string }) => api(`/admin/users/${uid}`, { method: "PATCH", body }),
+  adminDeleteUser: (uid: string) => api(`/admin/users/${uid}`, { method: "DELETE" }),
+  adminRests: (params: { q?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    const s = qs.toString();
+    return api(`/admin/restaurants${s ? `?${s}` : ""}`);
+  },
+  adminCreateRest: (body: any) => api("/admin/restaurants", { method: "POST", body }),
+  adminUpdateRest: (rid: string, body: any) => api(`/admin/restaurants/${rid}`, { method: "PATCH", body }),
+  adminDeleteRest: (rid: string) => api(`/admin/restaurants/${rid}`, { method: "DELETE" }),
+  adminAssignOwner: (rid: string, body: { owner_id?: string | null; owner_phone?: string }) =>
+    api(`/admin/restaurants/${rid}/assign-owner`, { method: "POST", body }),
+  adminOwners: () => api("/admin/owners"),
+  adminOrders: (params: { q?: string; status?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    if (params.status) qs.set("status", params.status);
+    const s = qs.toString();
+    return api(`/admin/orders${s ? `?${s}` : ""}`);
+  },
+  // Live-tracking: admin single-order fetch with rider location snapshot.
+  adminOrder: (oid: string) => api(`/admin/orders/${oid}`),
+  // Admin categories
+  adminCategories: (rid: string) => api(`/admin/restaurants/${rid}/categories`),
+  adminCreateCategory: (rid: string, body: any) => api(`/admin/restaurants/${rid}/categories`, { method: "POST", body }),
+  adminUpdateCategory: (cid: string, body: any) => api(`/admin/categories/${cid}`, { method: "PATCH", body }),
+  adminDeleteCategory: (cid: string) => api(`/admin/categories/${cid}`, { method: "DELETE" }),
+  // Admin menu items
+  adminMenu: (rid: string) => api(`/admin/restaurants/${rid}/menu`),
+  adminCreateItem: (rid: string, body: any) => api(`/admin/restaurants/${rid}/menu`, { method: "POST", body }),
+  adminUpdateItem: (mid: string, body: any) => api(`/admin/menu/${mid}`, { method: "PATCH", body }),
+  adminDeleteItem: (mid: string) => api(`/admin/menu/${mid}`, { method: "DELETE" }),
+  // Admin item variations
+  adminListVariations: (mid: string) => api(`/admin/menu/${mid}/variations`),
+  adminCreateVariation: (mid: string, body: any) => api(`/admin/menu/${mid}/variations`, { method: "POST", body }),
+  adminUpdateVariation: (vid: string, body: any) => api(`/admin/variations/${vid}`, { method: "PATCH", body }),
+  adminDeleteVariation: (vid: string) => api(`/admin/variations/${vid}`, { method: "DELETE" }),
+  // Admin menu approval
+  adminMenuPendingCounts: () => api("/admin/menu/pending-counts"),
+  adminApproveItem: (mid: string) => api(`/admin/menu/${mid}/approve`, { method: "PATCH" }),
+  adminRejectItem: (mid: string, reason: string) => api(`/admin/menu/${mid}/reject`, { method: "PATCH", body: { reason } }),
+  // Applications
+  submitApplication: (body: any) => api("/applications/submit", { method: "POST", body }),
+  myApplications: () => api("/applications/mine"),
+  getApplication: (id: string) => api(`/applications/${id}`),
+  respondClarification: (id: string, body: any) => api(`/applications/${id}/respond-clarification`, { method: "POST", body }),
+  adminApplications: (params: Record<string, any> = {}) => {
+    const q = new URLSearchParams(params as any).toString();
+    return api(`/admin/applications${q ? `?${q}` : ""}`);
+  },
+  adminApplicationStats: () => api("/admin/applications/stats"),
+  adminGetApplication: (id: string) => api(`/admin/applications/${id}`),
+  adminReviewApplication: (id: string, body: any) => api(`/admin/applications/${id}/review`, { method: "POST", body }),
+  adminDeleteApplication: (id: string) => api(`/admin/applications/${id}`, { method: "DELETE" }),
+  // Ads / promo banners
+  ads: () => api("/ads", { auth: false }),
+  adminAds: () => api("/admin/ads"),
+  adminCreateAd: (body: any) => api("/admin/ads", { method: "POST", body }),
+  adminUpdateAd: (id: string, body: any) => api(`/admin/ads/${id}`, { method: "PATCH", body }),
+  adminDeleteAd: (id: string) => api(`/admin/ads/${id}`, { method: "DELETE" }),
+  // Media upload (banner images / GIFs / videos) — admin only
+  adminUploadMedia: async (fileUri: string, fileName?: string, mimeType?: string): Promise<{ url: string; media_type: string }> => {
+    const token = await storage.getItem<string>("auth_token", "");
+    const resp = await fetch(fileUri);
+    const blob = await resp.blob();
+    const mt = mimeType || (blob as any).type || "application/octet-stream";
+    const extFromMime = (mt.split("/")[1] || "bin").split(";")[0];
+    const name = fileName && /\.[a-z0-9]{2,5}$/i.test(fileName) ? fileName : `upload.${extFromMime}`;
+    const fd = new FormData();
+    fd.append("file", blob as any, name);
+    const res = await fetch(`${BASE}/api/admin/media/upload`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: fd,
+    });
+    const text = await res.text();
+    let data: any = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+    if (!res.ok) throw new Error((data && (data.detail || data.message)) || `Upload failed (${res.status})`);
+    return data;
+  },
+  // Checkout settings (admin-operated: cancellation policy + payment sections)
+  checkoutSettings: () => api("/settings/checkout", { auth: false }),
+  adminSetCheckoutSettings: (body: any) => api("/admin/settings/checkout", { method: "PATCH", body }),
+  // Saved addresses (per-user)
+  myAddresses: () => api("/me/addresses"),
+  addAddress: (body: any) => api("/me/addresses", { method: "POST", body }),
+  setDefaultAddress: (id: string) => api(`/me/addresses/${id}/default`, { method: "PATCH" }),
+  deleteAddress: (id: string) => api(`/me/addresses/${id}`, { method: "DELETE" }),
+  // Saved payment methods (per-user, masked)
+  myPaymentMethods: () => api("/me/payment-methods"),
+  addPaymentMethod: (body: any) => api("/me/payment-methods", { method: "POST", body }),
+  setDefaultPaymentMethod: (id: string) => api(`/me/payment-methods/${id}/default`, { method: "PATCH" }),
+  deletePaymentMethod: (id: string) => api(`/me/payment-methods/${id}`, { method: "DELETE" }),
+  // Bulk menu import (CSV)
+  adminBulkMenu: (rid: string, items: any[]) => api(`/admin/restaurants/${rid}/menu/bulk`, { method: "POST", body: { items } }),
+  ownerBulkMenu: (items: any[]) => api("/owner/menu/bulk", { method: "POST", body: { items } }),
+  ownerImportStructuredMenu: (payload: any) => api("/owner/menu/import-structured", { method: "POST", body: payload }),
+  // AI menu extraction (photo/PDF -> structured menu via Gemini 2.5 Flash)
+  ownerAiExtractMenu: (file_base64: string, mime_type: string, filename?: string) =>
+    api("/owner/menu/ai-extract", { method: "POST", body: { file_base64, mime_type, filename } }),
+  // FREE menu extraction (photo -> structured menu via on-device Tesseract OCR, no LLM cost)
+  ownerOcrExtractMenu: (file_base64: string, mime_type: string, filename?: string) =>
+    api("/owner/menu/ocr-extract", { method: "POST", body: { file_base64, mime_type, filename } }),
+  // AI: generate a fresh description from an item name (photo generation removed)
+  ownerMenuAiGenerate: (body: { name: string; veg?: boolean; fields?: string[] }) =>
+    api("/owner/menu/ai-generate", { method: "POST", body }),
+  // Dine-in: tables + KOT + settle
+  ownerTables: (rid?: string) => api(`/owner/tables${rid ? `?restaurant_id=${rid}` : ""}`),
+  ownerCreateTable: (label?: string, rid?: string) => api("/owner/tables", { method: "POST", body: { label, restaurant_id: rid } }),
+  ownerSetTableCount: (count: number, rid?: string) => api("/owner/tables/set-count", { method: "POST", body: { count, restaurant_id: rid } }),
+  ownerDeleteTable: (tid: string) => api(`/owner/tables/${tid}`, { method: "DELETE" }),
+  ownerTableSession: (tid: string) => api(`/owner/tables/${tid}/session`),
+  ownerSaveDraft: (tid: string, body: any) => api(`/owner/tables/${tid}/draft`, { method: "POST", body }),
+  ownerSendKot: (tid: string, body: any) => api(`/owner/tables/${tid}/kot`, { method: "POST", body }),
+  ownerEbillTable: (tid: string, body: any) => api(`/owner/tables/${tid}/ebill`, { method: "POST", body }),
+  ownerSettleTable: (tid: string, body: any) => api(`/owner/tables/${tid}/settle`, { method: "POST", body }),
+  ownerCancelTable: (tid: string) => api(`/owner/tables/${tid}/cancel`, { method: "POST" }),
+  // Kitchen (KDS)
+  ownerKitchenKots: (rid?: string) => api(`/owner/kitchen/kots${rid ? `?restaurant_id=${rid}` : ""}`),
+  ownerUpdateKotStatus: (kotId: string, status: "preparing" | "ready") => api(`/owner/kitchen/kots/${kotId}`, { method: "PATCH", body: { status } }),
+  // ---- AI Support Chat (customer/owner/rider) + live admin handoff ----
+  chatSession: () => api("/chat/session", { method: "POST" }),
+  chatMessages: (sid: string) => api(`/chat/messages?session_id=${sid}`),
+  chatSend: (text: string, session_id?: string) => api("/chat/send", { method: "POST", body: { text, session_id } }),
+  chatEscalate: (session_id?: string) => api("/chat/escalate", { method: "POST", body: { session_id } }),
+  adminChatSessions: (status?: string) => api(`/admin/chat/sessions${status ? `?status=${status}` : ""}`),
+  adminChatWaiting: () => api("/admin/chat/waiting-count"),
+  adminChatMessages: (sid: string) => api(`/admin/chat/${sid}/messages`),
+  adminJoinChat: (sid: string) => api(`/admin/chat/${sid}/join`, { method: "POST" }),
+  adminChatSend: (sid: string, text: string) => api(`/admin/chat/${sid}/send`, { method: "POST", body: { text } }),
+  adminCloseChat: (sid: string) => api(`/admin/chat/${sid}/close`, { method: "POST" }),
+  // ---- Web Push (VAPID) ----
+  pushPublicKey: () => api("/push/public-key", { auth: false }),
+  pushSubscribe: (subscription: any) => api("/push/subscribe", { method: "POST", body: { subscription } }),
+  pushStatus: () => api("/push/status"),
+  // ---- WhatsApp Cloud API settings (admin) ----
+  adminGetWhatsapp: () => api("/admin/settings/whatsapp"),
+  adminUpdateWhatsapp: (body: any) => api("/admin/settings/whatsapp", { method: "PATCH", body }),
+
+  // ---- Order quote (server-authoritative bill incl. per-km delivery) ----
+  orderQuote: (body: { restaurant_id: string; items: any[]; address: any; coupon_code?: string; offer_id?: string }) =>
+    api("/orders/quote", { method: "POST", body }),
+
+  // ---- Payments (Razorpay) ----
+  paymentSettings: () => api("/settings/payment", { auth: false }),
+  createPayment: (body: { purpose: "customer_order" | "dinein_bill" | "onboarding_fee" | "wallet_topup"; order_id?: string; dinein_order_id?: string; restaurant_id?: string; amount?: number }) =>
+    api("/payments/create-order", { method: "POST", body }),
+  verifyPayment: (body: { payment_id: string; razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) =>
+    api("/payments/verify", { method: "POST", body }),
+
+  // ---- Platform config (commission / per-km / onboarding) ----
+  platformPublic: () => api("/settings/platform-public", { auth: false }),
+  adminGetPlatform: () => api("/admin/settings/platform"),
+  adminPatchPlatform: (body: Record<string, any>) => api("/admin/settings/platform", { method: "PATCH", body }),
+  adminLedger: (limit = 500) => api(`/admin/ledger?limit=${limit}`),
+  adminCommissionSummary: () => api("/admin/commission-summary"),
+
+  // ---- Dine-in (customer) ----
+  dineinContext: (restaurant_id: string, table_id: string, token: string) =>
+    api(`/dinein/context?restaurant_id=${encodeURIComponent(restaurant_id)}&table_id=${encodeURIComponent(table_id)}&token=${encodeURIComponent(token)}`, { auth: false }),
+  createDineinOrder: (body: {
+    restaurant_id: string;
+    items: { menu_item_id: string; quantity: number }[];
+    note?: string;
+  }, dineinToken: string) => api("/dinein/order", { method: "POST", body, headers: { "X-Dinein-Token": dineinToken } }),
+  getDineinOrder: (oid: string) => api(`/dinein/order/${oid}`),
+  myDineinOrders: () => api("/dinein/mine"),
+  dineinPayCounter: (oid: string) => api(`/dinein/order/${oid}/pay-counter`, { method: "POST" }),
+
+  // ---- Dine-in (owner) ----
+  ownerDineinOrders: (status?: string) =>
+    api(`/owner/dinein/orders${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  ownerAcceptDineinOrder: (oid: string) =>
+    api(`/owner/dinein/orders/${oid}/accept`, { method: "POST" }),
+
+  // ---- Admin: notification settings & manual broadcasts ----
+  adminGetNotifSettings: () => api("/admin/settings/notifications"),
+  adminUpdateNotifSettings: (body: any) =>
+    api("/admin/settings/notifications", { method: "PATCH", body }),
+  adminBroadcastPush: (body: { title: string; body: string; url?: string; roles: string[] }) =>
+    api("/admin/push/broadcast", { method: "POST", body }),
+  adminListBroadcasts: () => api("/admin/push/broadcasts"),
+
+  // ---- Admin: menu price policy (owner hike/drop caps) ----
+  adminGetPricePolicy: () => api("/admin/settings/price-policy"),
+  adminSetPricePolicy: (body: any) => api("/admin/settings/price-policy", { method: "PATCH", body }),
+  adminGetRestaurantPricePolicy: (rid: string) => api(`/admin/restaurants/${rid}/price-policy`),
+  adminSetRestaurantPricePolicy: (rid: string, body: any) =>
+    api(`/admin/restaurants/${rid}/price-policy`, { method: "PATCH", body }),
+  adminClearRestaurantPricePolicy: (rid: string) =>
+    api(`/admin/restaurants/${rid}/price-policy`, { method: "DELETE" }),
+  // ---- Owner: read-only view of applicable price policy ----
+  ownerPricePolicy: () => api("/owner/menu/price-policy"),
+
+  // ---- Staff management (owner-side) ----
+  ownerListStaff: () => api("/owner/staff"),
+  ownerCreateStaff: (body: any) => api("/owner/staff", { method: "POST", body }),
+  ownerCreateStaffPreset: (body: any) => api("/owner/staff/preset", { method: "POST", body }),
+  ownerUpdateStaff: (sid: string, body: any) => api(`/owner/staff/${sid}`, { method: "PATCH", body }),
+  ownerDeleteStaff: (sid: string) => api(`/owner/staff/${sid}`, { method: "DELETE" }),
+
+  // ---- Staff management (admin-side) ----
+  adminListStaff: () => api("/admin/staff"),
+  adminCreateStaff: (body: any) => api("/admin/staff", { method: "POST", body }),
+  adminCreateStaffPreset: (body: any) => api("/admin/staff/preset", { method: "POST", body }),
+  adminUpdateStaff: (sid: string, body: any) => api(`/admin/staff/${sid}`, { method: "PATCH", body }),
+  adminDeleteStaff: (sid: string) => api(`/admin/staff/${sid}`, { method: "DELETE" }),
+
+  // ---- Staff self-service (both sides) ----
+  meStaff: () => api("/me/staff"),
+  staffModulesCatalog: () => api("/staff/modules"),
+
+  // ---- Policy & Compliance (legal pages, cancellation, COD) ----
+  // Legal content
+  getLegal: (audience: "customer" | "restaurant" | "rider", key: string) =>
+    api(`/legal/${audience}/${key}`, { auth: false }),
+  listLegal: (audience: "customer" | "restaurant" | "rider") =>
+    api(`/legal/${audience}`, { auth: false }),
+  adminListLegal: () => api("/admin/legal"),
+  adminUpdateLegal: (audience: string, key: string, content: any) =>
+    api(`/admin/legal/${audience}/${key}`, { method: "PATCH", body: { content } }),
+  adminResetLegal: (audience: string, key: string) =>
+    api(`/admin/legal/${audience}/${key}/reset`, { method: "POST" }),
+
+  // Cancellation rules
+  publicCancellationRules: () => api("/settings/cancellation", { auth: false }),
+  adminGetCancellationRules: () => api("/admin/settings/cancellation"),
+  adminUpdateCancellationRules: (body: any) =>
+    api("/admin/settings/cancellation", { method: "PATCH", body }),
+
+  // COD rules
+  adminGetCodRules: () => api("/admin/settings/cod-rules"),
+  adminUpdateCodRules: (body: any) => api("/admin/settings/cod-rules", { method: "PATCH", body }),
+
+  // Restaurant performance
+  ownerPerformance: () => api("/owner/performance"),
+  adminRestaurantPerformance: (rid: string) => api(`/admin/restaurants/${rid}/performance`),
+  adminAllRestaurantsPerformance: () => api("/admin/restaurants-performance"),
+
+  // Cancellation preview + execute
+  previewCancelOrder: (oid: string) => api(`/orders/${oid}/cancel-preview`),
+  cancelOrder: (oid: string, body: { reason?: string; reason_code?: string; genuine_reason?: boolean }) =>
+    api(`/orders/${oid}/cancel`, { method: "POST", body: body || {} }),
+
+  // Payment options (COD availability for current user)
+  myPaymentOptions: () => api("/me/payment-options"),
+
+  // Admin: customer payment status / overrides
+  adminGetCustomerPayment: (uid: string) => api(`/admin/customers/${uid}/payment-status`),
+  adminUpdateCustomerPayment: (uid: string, body: any) =>
+    api(`/admin/customers/${uid}/payment-status`, { method: "PATCH", body }),
+  adminListCustomersPayments: () => api("/admin/customers-payments"),
+
+  // ---- Marketing (WhatsApp campaigns funded by a per-restaurant prepaid wallet) ----
+  // Owner side
+  marketingOverview: (restaurant_id?: string) =>
+    api(`/marketing/overview${restaurant_id ? `?restaurant_id=${encodeURIComponent(restaurant_id)}` : ""}`),
+  marketingCustomers: (opts: { restaurant_id?: string; segment?: string; q?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.restaurant_id) p.set("restaurant_id", opts.restaurant_id);
+    if (opts.segment) p.set("segment", opts.segment);
+    if (opts.q) p.set("q", opts.q);
+    const qs = p.toString();
+    return api(`/marketing/customers${qs ? `?${qs}` : ""}`);
+  },
+  marketingWallet: (restaurant_id?: string) =>
+    api(`/marketing/wallet${restaurant_id ? `?restaurant_id=${encodeURIComponent(restaurant_id)}` : ""}`),
+  marketingCampaigns: (restaurant_id?: string) =>
+    api(`/marketing/campaigns${restaurant_id ? `?restaurant_id=${encodeURIComponent(restaurant_id)}` : ""}`),
+  marketingSendCampaign: (body: { restaurant_id?: string; message: string; phones?: string[]; segment?: string }) =>
+    api("/marketing/campaigns", { method: "POST", body }),
+  // Customer directory (owner)
+  ownerCustomersUpload: (body: { restaurant_id?: string; customers: { name?: string; phone: string; tag?: boolean }[]; replace?: boolean }) =>
+    api("/owner/customers/upload", { method: "POST", body }),
+  ownerCustomersDelete: (phone: string, restaurant_id?: string) =>
+    api(`/owner/customers/${encodeURIComponent(phone)}${restaurant_id ? `?restaurant_id=${encodeURIComponent(restaurant_id)}` : ""}`, { method: "DELETE" }),
+  ownerCustomersTemplateUrl: (restaurant_id?: string) => {
+    const base = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+    const q = restaurant_id ? `?restaurant_id=${encodeURIComponent(restaurant_id)}` : "";
+    return `${base}/api/owner/customers/template${q}`;
+  },
+  // Marketing templates (owner + admin) — pre-approved library + submit for approval flow
+  marketingTemplates: (opts: { restaurant_id?: string; kind?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.restaurant_id) p.set("restaurant_id", opts.restaurant_id);
+    if (opts.kind)          p.set("kind", opts.kind);
+    const qs = p.toString();
+    return api(`/marketing/templates${qs ? `?${qs}` : ""}`);
+  },
+  marketingSubmitTemplate: (body: { restaurant_id?: string; kind: string; name: string; body: string; submit_for_approval?: boolean }) =>
+    api("/marketing/templates", { method: "POST", body }),
+  marketingDeleteTemplate: (tid: string) =>
+    api(`/marketing/templates/${encodeURIComponent(tid)}`, { method: "DELETE" }),
+  // Admin
+  adminListTemplates: (opts: { status?: string; kind?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.status) p.set("status", opts.status);
+    if (opts.kind)   p.set("kind", opts.kind);
+    const qs = p.toString();
+    return api(`/admin/marketing/templates${qs ? `?${qs}` : ""}`);
+  },
+  adminCreateTemplate: (body: { kind: string; name: string; body: string }) =>
+    api("/admin/marketing/templates", { method: "POST", body }),
+  adminPatchTemplate: (tid: string, body: { name?: string; body?: string; kind?: string; status?: string; reject_reason?: string }) =>
+    api(`/admin/marketing/templates/${encodeURIComponent(tid)}`, { method: "PATCH", body }),
+  adminDeleteTemplate: (tid: string) =>
+    api(`/admin/marketing/templates/${encodeURIComponent(tid)}`, { method: "DELETE" }),
+  // Admin side
+  adminMarketingSettings: () => api("/admin/marketing/settings"),
+  adminUpdateMarketingSettings: (body: {
+    per_message_rate?: number; currency?: string;
+    marketing_template?: string; marketing_template_lang?: string; enabled?: boolean;
+  }) => api("/admin/marketing/settings", { method: "PUT", body }),
+  adminMarketingWallets: () => api("/admin/marketing/wallets"),
+  adminCreditMarketingWallet: (restaurant_id: string, body: { amount: number; note?: string }) =>
+    api(`/admin/marketing/wallets/${restaurant_id}/credit`, { method: "POST", body }),
+  adminMarketingUsage: () => api("/admin/marketing/usage"),
+};
